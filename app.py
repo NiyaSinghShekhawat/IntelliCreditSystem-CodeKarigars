@@ -131,47 +131,166 @@ def load_engines():
         "cam": CAMGenerator()
     }
 
-# ─── SIDEBAR ─────────────────────────────────────────────────────────────────
 
+# ─── SIDEBAR ─────────────────────────────────────────────────────────────────
+    # Make demo available outside sidebar
+global demo
+demo = st.session_state.get("demo", {})
 
 with st.sidebar:
     st.markdown("### 📋 Loan Application")
     st.markdown("---")
 
+    # company_name = st.text_input(
+    #     "Company Name *",
+    #     placeholder="ABC Private Limited"
+    # )
+    # promoter_name = st.text_input(
+    #     "Promoter / Director Name",
+    #     placeholder="Mr. Rajesh Kumar"
+    # )
+    # loan_amount_requested = st.number_input(
+    #     "Loan Amount Requested (Rs.)",
+    #     min_value=100000,
+    #     max_value=50000000,
+    #     value=2500000,
+    #     step=100000,
+    #     format="%d"
+    # )
+    # loan_purpose = st.selectbox(
+    #     "Loan Purpose",
+    #     ["Working Capital", "Term Loan", "Machinery",
+    #      "Expansion", "Trade Finance", "Other"]
+    # )
     company_name = st.text_input(
         "Company Name *",
+        value=demo.get("company", ""),
         placeholder="ABC Private Limited"
     )
     promoter_name = st.text_input(
         "Promoter / Director Name",
+        value=demo.get("promoter", ""),
         placeholder="Mr. Rajesh Kumar"
     )
     loan_amount_requested = st.number_input(
         "Loan Amount Requested (Rs.)",
         min_value=100000,
         max_value=50000000,
-        value=2500000,
+        value=demo.get("loan", 2500000),
         step=100000,
         format="%d"
     )
+    purpose_options = ["Working Capital", "Term Loan", "Machinery",
+                       "Expansion", "Trade Finance", "Other"]
+    default_purpose = demo.get("purpose", "Working Capital")
+    purpose_index = purpose_options.index(default_purpose) \
+        if default_purpose in purpose_options else 0
     loan_purpose = st.selectbox(
         "Loan Purpose",
-        ["Working Capital", "Term Loan", "Machinery",
-         "Expansion", "Trade Finance", "Other"]
+        purpose_options,
+        index=purpose_index
     )
+
+    # st.markdown("---")
+    # st.markdown("### ⚙️ Settings")
+    st.markdown("---")
+    st.markdown("### 🎯 Demo Mode")
+    st.markdown("Auto-fill inputs for judges:")
+
+    col_d1, col_d2, col_d3 = st.columns(3)
+    with col_d1:
+        demo_low = st.button("🟢 Low\nRisk", use_container_width=True)
+    with col_d2:
+        demo_med = st.button("🟡 Med\nRisk", use_container_width=True)
+    with col_d3:
+        demo_high = st.button("🔴 High\nRisk", use_container_width=True)
+
+    # Demo scenario definitions
+    DEMO_SCENARIOS = {
+        "low": {
+            "company": "Safe Industries Pvt Ltd",
+            "promoter": "Rajesh Mehta",
+            "loan": 2500000,
+            "purpose": "Working Capital",
+            "site_visit": "Factory running at full capacity. New orders from Tata Motors. Expanding warehouse. Good condition machinery.",
+            "mgmt": "Promoter has 15 years experience. Clear business plan. Very cooperative during interview.",
+            "de_ratio": 0.8,
+            "collateral": 120,
+            "net_worth": 15000000,
+            "promoter_score": 9,
+            "sector_risk": 3,
+            "mock_level": "low"
+        },
+        "medium": {
+            "company": "ABC Manufacturing Pvt Ltd",
+            "promoter": "Suresh Kumar",
+            "loan": 5000000,
+            "purpose": "Machinery",
+            "site_visit": "Factory operational but running at 60% capacity. Some idle machinery observed. Management cooperative.",
+            "mgmt": "Promoter has 8 years experience. Adequate business plan presented.",
+            "de_ratio": 1.8,
+            "collateral": 80,
+            "net_worth": 5000000,
+            "promoter_score": 6,
+            "sector_risk": 5,
+            "mock_level": "medium"
+        },
+        "high": {
+            "company": "XYZ Traders Pvt Ltd",
+            "promoter": "Vikram Shah",
+            "loan": 10000000,
+            "purpose": "Working Capital",
+            "site_visit": "Factory found shut during visit. Idle machinery observed. Poor condition. Workers said no orders since 3 months.",
+            "mgmt": "Promoter was evasive during interview. Could not explain fund utilization.",
+            "de_ratio": 4.2,
+            "collateral": 30,
+            "net_worth": 500000,
+            "promoter_score": 2,
+            "sector_risk": 9,
+            "mock_level": "high"
+        }
+    }
+
+    # Set demo scenario in session state
+    if demo_low:
+        st.session_state["demo"] = DEMO_SCENARIOS["low"]
+        st.success("🟢 Low Risk scenario loaded!")
+    elif demo_med:
+        st.session_state["demo"] = DEMO_SCENARIOS["medium"]
+        st.warning("🟡 Medium Risk scenario loaded!")
+    elif demo_high:
+        st.session_state["demo"] = DEMO_SCENARIOS["high"]
+        st.error("🔴 High Risk scenario loaded!")
+
+    # Load demo values if set
+    demo = st.session_state.get("demo", {})
 
     st.markdown("---")
     st.markdown("### ⚙️ Settings")
+
+    # use_mock_research = st.checkbox(
+    #     "Use Mock Research Data",
+    #     value=True,
+    #     help="Use when internet is unavailable"
+    # )
+    # mock_risk_level = st.select_slider(
+    #     "Mock Risk Level",
+    #     options=["low", "medium", "high"],
+    #     value="medium"
+    # ) if use_mock_research else "medium"
     use_mock_research = st.checkbox(
         "Use Mock Research Data",
         value=True,
         help="Use when internet is unavailable"
     )
-    mock_risk_level = st.select_slider(
-        "Mock Risk Level",
-        options=["low", "medium", "high"],
-        value="medium"
-    ) if use_mock_research else "medium"
+    if use_mock_research:
+        mock_risk_level = st.select_slider(
+            "Mock Risk Level (auto-set in Demo Mode)",
+            options=["low", "medium", "high"],
+            value=demo.get("mock_level", "medium")
+        )
+    else:
+        mock_risk_level = "medium"
 
     st.markdown("---")
     st.markdown("### 📊 About")
@@ -182,6 +301,7 @@ with st.sidebar:
     - 📄 Parser: Docling
     - 🗄️ RAG: ChromaDB
     """)
+
 
 # ─── MAIN CONTENT ────────────────────────────────────────────────────────────
 
@@ -272,7 +392,6 @@ with tab1:
         )
 
 # ── TAB 2: Officer Inputs ────────────────────────────────────────────────────
-
 with tab2:
     st.markdown("### 👤 Primary Due Diligence Inputs")
     st.markdown(
@@ -285,42 +404,37 @@ with tab2:
     with col1:
         site_visit_notes = st.text_area(
             "🏭 Site Visit Notes",
-            placeholder=(
-                "e.g. Factory running at full capacity. "
-                "Good condition machinery. "
-                "New orders from Tata Motors visible on order board."
-            ),
+            value=demo.get("site_visit", ""),
+            placeholder="e.g. Factory running at full capacity...",
             height=150
         )
         management_notes = st.text_area(
             "👥 Management Interview Notes",
-            placeholder=(
-                "e.g. Promoter has 15 years experience. "
-                "Clear business plan presented. "
-                "Cooperative during interview."
-            ),
+            value=demo.get("mgmt", ""),
+            placeholder="e.g. Promoter has 15 years experience...",
             height=150
         )
 
     with col2:
+        de_val = float(demo.get("de_ratio", 1.5))
         debt_equity = st.slider(
             "📊 Debt / Equity Ratio",
             min_value=0.0,
             max_value=5.0,
-            value=1.5,
+            value=round(de_val, 1),
             step=0.1
         )
         collateral_pct = st.slider(
             "🏠 Collateral Coverage (%)",
             min_value=0,
             max_value=200,
-            value=75,
+            value=int(demo.get("collateral", 75)),
             step=5
         )
         net_worth = st.number_input(
             "💰 Net Worth (Rs.)",
             min_value=0,
-            value=5000000,
+            value=int(demo.get("net_worth", 5000000)),
             step=100000,
             format="%d"
         )
@@ -328,14 +442,14 @@ with tab2:
             "⭐ Promoter Integrity Score",
             min_value=1,
             max_value=10,
-            value=7,
+            value=int(demo.get("promoter_score", 7)),
             help="1=Very Poor, 10=Excellent"
         )
         sector_risk = st.slider(
             "🏭 Sector Risk Score",
             min_value=1,
             max_value=10,
-            value=5,
+            value=int(demo.get("sector_risk", 5)),
             help="1=Very Low Risk, 10=Very High Risk"
         )
 
@@ -357,13 +471,13 @@ with tab2:
         )
         if pos_hits > risk_hits:
             st.success(
-                f"✅ Site visit notes suggest POSITIVE signals "
+                f"✅ Positive signals detected "
                 f"({pos_hits} positive vs {risk_hits} risk keywords). "
                 f"Risk score will decrease."
             )
         elif risk_hits > pos_hits:
             st.warning(
-                f"⚠️ Site visit notes suggest RISK signals "
+                f"⚠️ Risk signals detected "
                 f"({risk_hits} risk vs {pos_hits} positive keywords). "
                 f"Risk score will increase."
             )
@@ -371,6 +485,7 @@ with tab2:
             st.info("ℹ️ Neutral site visit notes. No score adjustment.")
     else:
         st.info("Enter site visit notes above to see score preview.")
+
 
 # ── RUN ANALYSIS BUTTON ──────────────────────────────────────────────────────
 
@@ -528,23 +643,23 @@ with tab3:
                         "#c62828" if v > 0 else "#2e7d32"
                         for v in values
                     ]
-                    fig2 = go.Figure(go.Bar(
-                        x=values,
-                        y=names,
-                        orientation="h",
-                        marker_color=colors_list,
-                        text=[
-                            f.direction for f in factors
-                        ],
-                        textposition="outside"
-                    ))
-                    fig2.update_layout(
-                        xaxis_title="Risk Impact",
-                        height=350,
-                        margin=dict(l=10, r=10, t=40, b=40),
-                        xaxis=dict(zeroline=True)
-                    )
-                    st.plotly_chart(fig2, use_container_width=True)
+                    # fig2 = go.Figure(go.Bar(
+                    #     x=values,
+                    #     y=names,
+                    #     orientation="h",
+                    #     marker_color=colors_list,
+                    #     text=[
+                    #         f.direction for f in factors
+                    #     ],
+                    #     textposition="outside"
+                    # ))
+                    # fig2.update_layout(
+                    #     xaxis_title="Risk Impact",
+                    #     height=350,
+                    #     margin=dict(l=10, r=10, t=40, b=40),
+                    #     xaxis=dict(zeroline=True)
+                    # )
+                    # st.plotly_chart(fig2, use_container_width=True)
 
             st.markdown("---")
 

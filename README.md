@@ -122,7 +122,7 @@ venv\Scripts\activate
 # Install dependencies
 pip install docling langchain langchain-community langchain-ollama
 pip install langchain-groq chromadb xgboost scikit-learn shap
-pip install numpy pandas reportlab python-docx streamlit plotly
+pip install numpy pandas reportlab python-docx streamlit plotly python-dotenv
 pip install requests beautifulsoup4 paddleocr opencv-python-headless
 
 # Pull Ollama models (offline backup)

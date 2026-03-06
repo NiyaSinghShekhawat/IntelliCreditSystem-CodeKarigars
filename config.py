@@ -2,6 +2,13 @@
 import os
 from pathlib import Path
 
+# Load .env before reading any env vars (so GROQ_API_KEY works from .env)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent / ".env")
+except ImportError:
+    pass  # python-dotenv not installed; rely on system env vars
+
 # ─── PROJECT PATHS ───────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).parent
 SRC_DIR = BASE_DIR / "src"

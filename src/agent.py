@@ -204,15 +204,29 @@ class CreditAgent:
             loan_limit = self._calculate_loan_limit(result)
 
         # Cap at maximum
-        loan_limit = min(loan_limit, MAX_LOAN_LIMIT_INR)
+        # loan_limit = min(loan_limit, MAX_LOAN_LIMIT_INR)
+        # No loan for rejected cases
+        if decision == DecisionType.REJECT:
+            loan_limit = 0.0
+        else:
+            loan_limit = min(loan_limit, MAX_LOAN_LIMIT_INR)
 
         # Extract interest rate
         rate = BASE_INTEREST_RATE
-        rate_match = re.search(
-            r'RATE:\s*([\d.]+)%', reasoning, re.IGNORECASE
-        )
-        if rate_match:
-            rate = float(rate_match.group(1))
+        # rate_match = re.search(
+        #     r'RATE:\s*([\d.]+)%', reasoning, re.IGNORECASE
+        # )
+        # if rate_match:
+        #     rate = float(rate_match.group(1))
+        rate = BASE_INTEREST_RATE
+        if decision == DecisionType.REJECT:
+            rate = 0.0
+        else:
+            rate_match = re.search(
+                r'RATE:\s*([\d.]+)%', reasoning, re.IGNORECASE
+            )
+            if rate_match:
+                rate = float(rate_match.group(1))
 
         # Extract decisive factor
         decisive_factor = ""
