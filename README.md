@@ -35,8 +35,8 @@ IntelliCredit automates the credit appraisal process for Indian SME lending. It 
 | Research Agent | `src/researcher.py` | ✅ Complete |
 | CAM Generator | `src/cam_generator.py` | ✅ Complete |
 | Streamlit UI | `app.py` | ✅ Complete |
-| Test Pipeline | `tests/test_pipeline.py` | 🔜 Pending |
-| Google News Scraper | `src/researcher.py` upgrade | 🔜 Pending |
+| Test Pipeline | `tests/test_pipeline.py` | ✅ Complete |
+| News Research (Google News + GDELT) | `src/researcher.py` | ✅ Complete |
 
 
 ---
@@ -59,7 +59,7 @@ IntelliCredit/
 │   ├── rag.py              # ChromaDB vector store
 │   ├── risk_engine.py      # XGBoost + SHAP scoring
 │   ├── five_cs.py          # Five Cs credit assessment
-│   ├── researcher.py       # News + MCA + e-Courts scraper
+│   ├── researcher.py       # Google News + GDELT + MCA + e-Courts scraper
 │   └── cam_generator.py    # PDF + DOCX report builder
 ├── samples/
 │   ├── low_risk/
@@ -90,7 +90,7 @@ IntelliCredit/
 | **UI** | Streamlit |
 | **PDF Generation** | ReportLab |
 | **DOCX Generation** | python-docx |
-| **News Research** | GDELT API (free, no key) |
+| **News Research** | Google News RSS + GDELT API (free, no key) |
 | **Charts** | Plotly |
 
 
@@ -213,7 +213,8 @@ streamlit run app.py
 
 ### 7. External Research Agent
 
-- **GDELT** — global news search (free, no key)
+- **Google News RSS** — real-time Indian news search (primary, free, no key)
+- **GDELT** — global news search (fallback, free, no key)
 - **MCA21** — company charges and director info
 - **e-Courts** — litigation detection
 - **RBI/SEBI** — enforcement actions
