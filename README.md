@@ -305,7 +305,7 @@ Expected: Score ~0.75-0.90, REJECT, Rate 14%+
 ---
 
 
-## 👤 Team
+## 👤 Team : Code Karigars
 
 
 **Project:** IntelliCredit  
