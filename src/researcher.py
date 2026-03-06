@@ -25,10 +25,49 @@ class ResearchAgent:
         print(f"Researching: {company_name}")
         findings = ResearchFindings(company_name=company_name)
 
-        print("  Searching news (GDELT)...")
-        news_items = self._search_gdelt(company_name)
+        # print("  Searching news (GDELT)...")
+        # news_items = self._search_gdelt(company_name)
+        # if promoter_name:
+        #     news_items.extend(self._search_gdelt(promoter_name))
+        print("  Searching news (Google News + GDELT)...")
+        # Try Google News first (more reliable)
+        news_items = self._search_google_news(company_name)
+
+        # Search for specific risk categories
+        risk_queries = [
+            f"{company_name} fraud OR scam OR arrest",
+            f"{company_name} GST violation OR notice OR penalty",
+            f"{company_name} court case OR FIR OR defaulter",
+        ]
+        positive_queries = [
+            f"{company_name} new project OR expansion OR contract",
+            f"{company_name} award OR certification OR export",
+        ]
+
+        for q in risk_queries:
+            news_items.extend(self._search_google_news(q))
+        for q in positive_queries:
+            news_items.extend(self._search_google_news(q))
+
+        # Also try promoter name
         if promoter_name:
-            news_items.extend(self._search_gdelt(promoter_name))
+            news_items.extend(self._search_google_news(promoter_name))
+
+        # Fallback to GDELT if Google News got nothing
+        if not news_items:
+            print("  Google News empty, trying GDELT...")
+            news_items = self._search_gdelt(company_name)
+            if promoter_name:
+                news_items.extend(self._search_gdelt(promoter_name))
+
+        # Deduplicate by title
+        seen_titles = set()
+        unique_items = []
+        for item in news_items:
+            if item.title not in seen_titles:
+                seen_titles.add(item.title)
+                unique_items.append(item)
+        news_items = unique_items
 
         for item in news_items:
             if item.is_negative:
@@ -201,6 +240,66 @@ class ResearchAgent:
         except Exception as e:
             if DEBUG_MODE:
                 print(f"  GDELT error: {e}")
+        return items
+
+    def _search_google_news(self, query: str) -> List[NewsItem]:
+        """
+        Search Google News RSS for real-time news.
+        Free, no API key, works reliably.
+        """
+        items = []
+        try:
+            import urllib.parse
+            encoded_query = urllib.parse.quote(query)
+            url = f"https://news.google.com/rss/search?q={encoded_query}&hl=en-IN&gl=IN&ceid=IN:en"
+
+            response = self.session.get(url, timeout=10)
+
+            if response.status_code != 200:
+                if DEBUG_MODE:
+                    print(f"  Google News returned {response.status_code}")
+                return items
+
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(response.content, "xml")
+            articles = soup.find_all("item")[:15]
+
+            for article in articles:
+                title = article.find("title")
+                title = title.text if title else ""
+                link = article.find("link")
+                link = link.text if link else ""
+                pub_date = article.find("pubDate")
+                pub_date = pub_date.text[:10] if pub_date else ""
+                source = article.find("source")
+                source = source.text if source else "Google News"
+
+                title_lower = title.lower()
+                found_keywords = [
+                    kw for kw in NEGATIVE_KEYWORDS
+                    if kw in title_lower
+                ]
+                is_negative = len(found_keywords) > 0
+
+                if title:
+                    items.append(NewsItem(
+                        title=title,
+                        url=link,
+                        date=pub_date,
+                        source=source,
+                        is_negative=is_negative,
+                        keywords_found=found_keywords
+                    ))
+
+            if DEBUG_MODE:
+                print(f"  Google News: {len(items)} articles for '{query}'")
+
+        except requests.exceptions.Timeout:
+            print("  Google News timeout")
+        except Exception as e:
+            if DEBUG_MODE:
+                print(f"  Google News error: {e}")
+
         return items
 
     def _check_mca(self, company_name: str) -> List[dict]:
