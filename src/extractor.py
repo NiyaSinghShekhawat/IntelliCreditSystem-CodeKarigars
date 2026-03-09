@@ -635,6 +635,13 @@ class FinancialExtractor:
                     except Exception:
                         bank = BankStatementData(**kwargs)
 
+                    # Always override avg_bal with xlsx summary row — Groq averages
+                    # all running balance column values which gives a wrong inflated figure.
+                    # The xlsx fallback reads the actual "Average Daily Balance" summary row.
+                    if parsed.source_file and parsed.source_file.lower().endswith(('.xlsx', '.xls')):
+                        bank = self._extract_bank_balance_from_xlsx(
+                            parsed.source_file, bank)
+
                     if DEBUG_MODE:
                         print(f"Bank via Groq: credits={bank.total_credits}, "
                               f"debits={bank.total_debits}, "

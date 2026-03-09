@@ -463,7 +463,20 @@ with tab3:
                 f'<div class="{css_class}">{icon} AI DECISION: {decision_str}</div>',
                 unsafe_allow_html=True
             )
-            st.markdown("")
+
+            # ── Decisive Factor — shown immediately below decision ────────────
+            decisive = getattr(pred, "decisive_factor", "") or ""
+            if decisive.strip():
+                st.markdown(
+                    f'<div style="background:#1a237e;border-left:4px solid #c9970a;'
+                    f'padding:10px 16px;border-radius:6px;margin:8px 0 12px 0;'
+                    f'color:#fff;font-size:0.95rem;">'
+                    f'<span style="color:#c9970a;font-weight:700;">⚡ DECISIVE FACTOR&nbsp;&nbsp;</span>'
+                    f'{decisive}</div>',
+                    unsafe_allow_html=True
+                )
+            else:
+                st.markdown("")
 
             col1, col2, col3, col4 = st.columns(4)
             with col1:
@@ -594,12 +607,19 @@ with tab3:
             if pred.early_warning_signals:
                 st.markdown("#### ⚠️ Early Warning Signals")
                 for w in pred.early_warning_signals:
-                    st.markdown(f'<div class="warning-box">⚠️ {w}</div>',
+                    # Policy override signals already have their own icon
+                    prefix = "" if w.startswith("⚠️") else "⚠️ "
+                    st.markdown(f'<div class="warning-box">{prefix}{w}</div>',
                                 unsafe_allow_html=True)
 
             st.markdown("---")
             with st.expander("🤖 View Full AI Reasoning Chain"):
-                st.text(result.reasoning_chain)
+                chain = result.reasoning_chain or ""
+                if chain.strip():
+                    st.text(chain)
+                else:
+                    st.info("AI reasoning chain unavailable — Groq API limit reached. "
+                            "XGBoost score and Five Cs analysis are unaffected.")
 
             if result.research:
                 with st.expander(
@@ -767,6 +787,7 @@ if run_button and company_name:
                 gst_3b = extractor.extract_gst(parsed_3b)
                 result.gst_reconciliation = engines["reconciler"].reconcile(
                     gst_2a, gst_3b)
+                result.gst_data = gst_3b  # use 3B as primary GST data for CAM/display
                 # Also ingest reconciliation docs into RAG
                 if not parsed_2a.error:
                     rag.ingest(parsed_2a, company_name=company_name)

@@ -305,6 +305,28 @@ class RiskEngine:
         else:
             risk_score, shap_values = self._rule_based_score(features)
 
+        # ── Hard business rule overrides ─────────────────────────────────────
+        # XGBoost is trained on synthetic data and can underweight GST variance.
+        # These rules enforce regulatory/policy minimums that always apply.
+        override_reason = None
+        gst_variance = features.get(
+            "gstr_mismatch_pct", 0.0)  # already normalised 0-1
+
+        if gst_variance >= 0.50:
+            # ≥50% ITC variance is a major red flag — minimum CONDITIONAL
+            # Floor risk score at 0.35 (just above LOW threshold of 0.30)
+            if risk_score < 0.35:
+                risk_score = 0.35
+                override_reason = f"GST ITC variance {gst_variance*100:.1f}% — policy floor applied"
+                print(f"[RISK ENGINE] Hard rule: GST variance {gst_variance*100:.1f}% → "
+                      f"risk_score floored to {risk_score}")
+        elif gst_variance >= 0.20:
+            # 20-50% variance — add penalty but don't force conditional
+            if risk_score < 0.20:
+                risk_score = max(risk_score, gst_variance * 0.4)
+                print(
+                    f"[RISK ENGINE] GST variance penalty applied: {risk_score:.3f}")
+
         shap_factors = self._build_shap_factors(
             features, shap_values, risk_score)
         risk_category, decision = self._categorize(risk_score)
@@ -314,6 +336,8 @@ class RiskEngine:
             BASE_INTEREST_RATE + (risk_score * MAX_RISK_SPREAD), 2
         )
         warnings = self._generate_warnings(features, result)
+        if override_reason:
+            warnings.insert(0, f"⚠️ Policy override: {override_reason}")
 
         return RiskPrediction(
             risk_score=round(risk_score, 3),
