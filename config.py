@@ -1,7 +1,7 @@
 # config.py
 import os
 from pathlib import Path
-from google import genai
+
 try:
     from dotenv import load_dotenv
     load_dotenv(Path(__file__).parent / ".env")
@@ -29,7 +29,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL = "llama-3.3-70b-versatile"
 
 # ── Gemini fallback (secondary LLM when all Groq keys exhausted) ─────────────
-GEMINI_API_KEY = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
+# GEMINI_API_KEY = genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
 
 # ── Multi-key rotation (add backup keys to .env as GROQ_API_KEY_2, _3 etc.) ──
 # Automatically falls through to next key on rate limit (429) errors.
