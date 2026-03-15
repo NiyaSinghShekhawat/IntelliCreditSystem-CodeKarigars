@@ -196,14 +196,33 @@ def _save_extractions_to_db():
         return
     try:
         from src.database import update_case
+        from datetime import datetime, timezone
+
         results = st.session_state.get("hitl_extractions", {})
         serialized = {
             fname: result.model_dump()
             for fname, result in results.items()
             if result is not None
         }
+
+        # Build uploaded files metadata for audit trail
+        classifications = st.session_state.get("hitl_classifications", {})
+        uploaded_files_meta = []
+        for fname, clf in classifications.items():
+            if clf:
+                uploaded_files_meta.append({
+                    "filename":       fname,
+                    "doc_type":       clf.doc_type,
+                    "doc_type_label": clf.doc_type_label,
+                    "confidence":     round(clf.confidence, 3),
+                    "uploaded_at":    datetime.now(timezone.utc).isoformat(),
+                })
+
         if serialized:
-            update_case(case_id, {"five_cs_json": serialized})
+            update_case(case_id, {
+                "five_cs_json":   serialized,
+                "uploaded_files": uploaded_files_meta,
+            })
     except Exception as e:
         st.caption(f"ℹ️ Could not save to DB: {e}")
 
@@ -211,11 +230,6 @@ def _save_extractions_to_db():
 # ─── EXTRACTION RUNNER ────────────────────────────────────────────────────────
 
 def _run_extraction():
-    col_re, _ = st.columns([2, 6])
-    with col_re:
-        if st.button("🔄 Re-extract all", use_container_width=True):
-            st.session_state.hitl_extractions = {}
-            st.rerun()
     """Run extractors on all confirmed + classified files. Re-renders on reruns."""
     from src.extractors_v2 import extract_by_doc_type
     from src.classifier import extract_financial_text
@@ -258,7 +272,12 @@ def _run_extraction():
 
             result = None
             try:
-                text = extract_financial_text(tmp_path, max_chars=8000)
+                # Use financial text extraction with doc type hint for better coverage
+                text = extract_financial_text(
+                    tmp_path,
+                    max_chars=40000,
+                    doc_type_hint=clf.doc_type
+                )
                 print(
                     f"[EXTRACT] {uf.name} → {clf.doc_type}, text={len(text)} chars")
                 result = extract_by_doc_type(clf.doc_type, text, tables=None)
@@ -337,7 +356,8 @@ def render():
                 uf.seek(0)
 
                 try:
-                    from src.classifier import extract_financial_text, classify_document
+                    from src.classifier import extract_preview_text, extract_financial_text, classify_document
+                    # Use financial text for classification too — better signal
                     text = extract_financial_text(tmp_path, max_chars=12000)
                     print(
                         f"[CLASSIFY] Text length: {len(text)}, preview: {text[:100]!r}")
@@ -509,3 +529,24 @@ def render():
     elif st.session_state.get("hitl_extractions") and st.session_state.get("hitl_upload_files"):
         # Reruns after extraction — just re-render, no re-processing
         _run_extraction()
+
+    # ── Continue to Analysis button (shown after extraction is done) ──────────
+    if st.session_state.get("hitl_extractions"):
+        st.markdown("<hr class='ic-divider'>", unsafe_allow_html=True)
+        col_info, col_btn = st.columns([5, 2])
+        with col_info:
+            count = len(st.session_state["hitl_extractions"])
+            company = st.session_state.get("company_name", "this entity")
+            st.markdown(
+                f"<div style='font-size:0.88rem;color:var(--text-sec);padding-top:0.5rem;'>"
+                f"✅ <strong style='color:var(--text);'>{count} document(s)</strong> extracted "
+                f"and saved to case for <strong style='color:var(--steel);'>{company}</strong>. "
+                f"Ready for AI credit analysis."
+                f"</div>",
+                unsafe_allow_html=True
+            )
+        with col_btn:
+            if st.button("Continue to Analysis →", type="primary", use_container_width=True):
+                st.session_state["auto_run_analysis"] = True
+                st.session_state.page = "analysis"
+                st.rerun()

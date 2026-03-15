@@ -136,7 +136,11 @@ class CreditAgent:
             risk_score=risk_score,
             risk_category=risk_category,
         )
-        result.reasoning_chain = reasoning
+        # result.reasoning_chain = reasoning
+        chain = result.reasoning_chain or ""
+        if "DeltaGenerator" in chain:
+            chain = chain[:chain.index("DeltaGenerator")].strip()
+        result.reasoning_chain = chain
 
         # Step 5: Extract structured fields from LLM text and PATCH onto
         # the existing risk_prediction (do NOT replace it)

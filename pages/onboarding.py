@@ -106,12 +106,10 @@ def _step1():
             value=f.get("gstin", ""),
             placeholder="27ABCDE1234F1Z5"
         )
-        turnover = st.number_input(
+        turnover = st.number_input(          # ← ADD THIS
             "Annual Turnover (₹ Cr)",
-            min_value=0.0,
-            value=float(f.get("turnover_cr", 0.0)),
-            step=0.5,
-            format="%.2f"
+            min_value=0.0, step=0.5,
+            format="%.2f", key="ob_turnover"
         )
         incorporation_year = st.number_input(
             "Year of Incorporation",

@@ -28,11 +28,10 @@ class DocumentType(str, Enum):
     LEGAL_NOTICE = "LEGAL_NOTICE"
     OTHER = "OTHER"
 
+
 # ─── DOCUMENT PARSING ────────────────────────────────────────────────────────
 
-
 class ExtractedTable(BaseModel):
-    """A single table extracted from a document"""
     table_index: int
     headers: List[str] = []
     rows: List[List[str]] = []
@@ -40,7 +39,6 @@ class ExtractedTable(BaseModel):
 
 
 class ParsedDocument(BaseModel):
-    """Output of the Docling parser for any document"""
     source_file: str
     document_type: DocumentType = DocumentType.OTHER
     raw_text: str = ""
@@ -50,11 +48,10 @@ class ParsedDocument(BaseModel):
     extracted_at: datetime = Field(default_factory=datetime.now)
     error: Optional[str] = None
 
+
 # ─── GST DATA ────────────────────────────────────────────────────────────────
 
-
 class GSTData(BaseModel):
-    """Extracted GST return data"""
     gstin: Optional[str] = None
     company_name: Optional[str] = None
     tax_period: Optional[str] = None
@@ -69,7 +66,6 @@ class GSTData(BaseModel):
 
 
 class GSTReconciliationResult(BaseModel):
-    """Result of GSTR-2A vs GSTR-3B reconciliation"""
     total_mismatches: int = 0
     risk_flag: bool = False
     variance_pct: float = 0.0
@@ -77,11 +73,10 @@ class GSTReconciliationResult(BaseModel):
     mismatches: List[Dict[str, Any]] = []
     summary: str = ""
 
+
 # ─── BANK STATEMENT DATA ─────────────────────────────────────────────────────
 
-
 class BankStatementData(BaseModel):
-    """Extracted bank statement data"""
     account_number: Optional[str] = None
     account_holder: Optional[str] = None
     bank_name: Optional[str] = None
@@ -99,11 +94,10 @@ class BankStatementData(BaseModel):
     large_unusual_transactions: List[Dict[str, Any]] = []
     average_monthly_balance: float = 0.0
 
+
 # ─── ITR DATA ────────────────────────────────────────────────────────────────
 
-
 class ITRData(BaseModel):
-    """Extracted ITR data"""
     pan: Optional[str] = None
     assessment_year: Optional[str] = None
     gross_income: float = 0.0
@@ -114,59 +108,36 @@ class ITRData(BaseModel):
     net_worth: float = 0.0
     total_assets: float = 0.0
     total_liabilities: float = 0.0
-    # Added: broken-out debt fields needed for accurate D/E ratio calculation.
-    # total_liabilities includes trade payables and other non-debt items, so
-    # using it directly overstates leverage. These capture borrowings only.
-    long_term_debt: float = 0.0     # Term loans, debentures
-    short_term_debt: float = 0.0    # CC limits, working capital loans
-    revenue: float = 0.0            # Top-line revenue for growth rate calc
-    ebitda: float = 0.0             # For DSCR computation
-    interest_expense: float = 0.0   # For DSCR computation
+    long_term_debt: float = 0.0
+    short_term_debt: float = 0.0
+    revenue: float = 0.0
+    ebitda: float = 0.0
+    interest_expense: float = 0.0
+
 
 # ─── DERIVED FINANCIALS ──────────────────────────────────────────────────────
 
-
 class DerivedFinancials(BaseModel):
-    """
-    Auto-computed financial ratios derived from uploaded documents.
-    Populated by RiskEngine.derive_from_documents() before the officer
-    fills in QualitativeInputs — pre-fills the UI with document-backed values.
-
-    Fields that cannot be derived (collateral, promoter score, site visit)
-    remain None so the UI knows to require officer input for those only.
-    """
-    # Derived from ITR
-    debt_equity_ratio: Optional[float] = None      # (LTD + STD) / net_worth
-    net_worth_inr: Optional[float] = None          # Direct from ITR
-    total_debt_inr: Optional[float] = None         # LTD + STD
-    # current_assets / current_liabilities
+    debt_equity_ratio: Optional[float] = None
+    net_worth_inr: Optional[float] = None
+    total_debt_inr: Optional[float] = None
     current_ratio: Optional[float] = None
-    # EBITDA / (interest + principal)
     dscr: Optional[float] = None
-    net_profit_margin: Optional[float] = None      # net_income / revenue
-
-    # Derived from Bank Statement
+    net_profit_margin: Optional[float] = None
     avg_monthly_balance_inr: Optional[float] = None
     monthly_credit_avg_inr: Optional[float] = None
-    credit_utilisation_pct: Optional[float] = None  # debits / credits
-
-    # Derived from GST
+    credit_utilisation_pct: Optional[float] = None
     gst_turnover_inr: Optional[float] = None
     itc_claimed_inr: Optional[float] = None
-    effective_tax_rate_pct: Optional[float] = None  # total_tax / turnover
-
-    # Flags
-    data_completeness_pct: float = 0.0   # % of fields successfully derived
-    # Warnings about missing/assumed values
+    effective_tax_rate_pct: Optional[float] = None
+    data_completeness_pct: float = 0.0
     derivation_notes: List[str] = []
-    # Names of fields successfully auto-derived from documents
     auto_filled_fields: List[str] = []
+
 
 # ─── RESEARCH DATA ───────────────────────────────────────────────────────────
 
-
 class NewsItem(BaseModel):
-    """A single news article"""
     title: str
     url: str = ""
     date: str = ""
@@ -176,7 +147,6 @@ class NewsItem(BaseModel):
 
 
 class ResearchFindings(BaseModel):
-    """Output of the research agent"""
     company_name: str
     negative_news: List[NewsItem] = []
     positive_news: List[NewsItem] = []
@@ -184,43 +154,39 @@ class ResearchFindings(BaseModel):
     litigation_details: List[str] = []
     mca_charges: List[Dict[str, Any]] = []
     rbi_sebi_actions: List[str] = []
-    news_risk_score: float = 0.0   # 0-10
+    news_risk_score: float = 0.0
     research_summary: str = ""
+
 
 # ─── FIVE Cs ─────────────────────────────────────────────────────────────────
 
-
 class CScore(BaseModel):
-    """Score for a single C"""
-    score: float        # 0-10
+    score: float
     factors: List[str] = []
     details: Dict[str, Any] = {}
     summary: str = ""
 
 
 class FiveCsResult(BaseModel):
-    """Complete Five Cs assessment"""
     character: CScore
     capacity: CScore
     capital: CScore
     collateral: CScore
     conditions: CScore
-    overall_score: float = 0.0   # Weighted average
+    overall_score: float = 0.0
+
 
 # ─── RISK SCORING ────────────────────────────────────────────────────────────
 
-
 class SHAPFactor(BaseModel):
-    """A single SHAP explanation factor"""
     feature_name: str
     shap_value: float
-    direction: str   # "increases risk" or "decreases risk"
+    direction: str
     display_name: str = ""
 
 
 class RiskPrediction(BaseModel):
-    """Output of the risk scoring engine"""
-    risk_score: float           # 0.0 to 1.0
+    risk_score: float
     risk_category: RiskCategory
     decision: DecisionType
     loan_limit_inr: float
@@ -230,44 +196,48 @@ class RiskPrediction(BaseModel):
     decisive_factor: str = ""
     early_warning_signals: List[str] = []
 
+
 # ─── QUALITATIVE INPUTS ──────────────────────────────────────────────────────
 
-
 class QualitativeInputs(BaseModel):
-    """
-    Officer's due diligence inputs.
-
-    Fields marked AUTO are pre-filled from DerivedFinancials when documents
-    are uploaded — officer can override but doesn't have to type them.
-    Fields marked OFFICER must always be entered manually.
-    """
-    # OFFICER — cannot be derived from any document
+    # OFFICER — must be entered manually
     site_visit_notes: str = ""
     management_interview_notes: str = ""
-    promoter_score: int = 5             # 1-10, integrity assessment
-    sector_risk_score: int = 5          # 1-10, officer's sector view
-    collateral_coverage: float = 0.6    # depends on what borrower offers
+    promoter_score: int = 5
+    sector_risk_score: int = 5
+    collateral_coverage: float = 0.6
 
-    # AUTO — pre-filled from ITR/Bank, officer can override
-    debt_equity_ratio: float = 1.5      # derived: (LTD+STD) / net_worth
-    net_worth_inr: float = 0.0          # derived: from ITR balance sheet
+    # AUTO — pre-filled from documents, officer can override
+    debt_equity_ratio: float = 1.5
+    net_worth_inr: float = 0.0
 
-    # Tracks whether auto-fill was applied (for UI to show lock/edit icon)
-    auto_filled_fields: List[str] = []
+    # Tracks which fields were auto-filled (for UI lock icon)
+    # Single definition — Optional list, defaults to empty list
+    auto_filled_fields: Optional[List[str]] = None
 
 
 class QualitativeAdjustment(BaseModel):
-    """How officer inputs adjusted the base risk score"""
     base_score: float
     adjusted_score: float
     adjustment_delta: float
     adjustment_reason: str
 
+
+# ─── DOCUMENT CLASSIFICATION ─────────────────────────────────────────────────
+
+class DocumentClassification(BaseModel):
+    doc_type: str
+    doc_type_label: str
+    confidence: float
+    reasoning: str
+    key_signals: List[str]
+    user_confirmed: bool = False
+    user_override: Optional[str] = None
+
+
 # ─── FINAL CAM OUTPUT ────────────────────────────────────────────────────────
 
-
 class CreditAppraisalResult(BaseModel):
-    """The complete output of the entire pipeline"""
     company_name: str
     cin: Optional[str] = None
     generated_at: datetime = Field(default_factory=datetime.now)
@@ -278,7 +248,7 @@ class CreditAppraisalResult(BaseModel):
     itr_data: Optional[ITRData] = None
     gst_reconciliation: Optional[GSTReconciliationResult] = None
 
-    # Auto-derived ratios (populated before officer input screen)
+    # Auto-derived ratios
     derived_financials: Optional[DerivedFinancials] = None
 
     # Research
@@ -289,6 +259,11 @@ class CreditAppraisalResult(BaseModel):
     qualitative_inputs: Optional[QualitativeInputs] = None
     qualitative_adjustment: Optional[QualitativeAdjustment] = None
 
+    # v2.0 — HITL extractions, SWOT, triangulated research
+    hitl_extractions: Optional[Dict[str, Any]] = None
+    swot: Optional[Any] = None
+    research_dict: Optional[Dict[str, Any]] = None
+
     # Final decision
     risk_prediction: Optional[RiskPrediction] = None
 
@@ -298,15 +273,3 @@ class CreditAppraisalResult(BaseModel):
     # Report paths
     pdf_report_path: Optional[str] = None
     docx_report_path: Optional[str] = None
-
-
-class DocumentClassification(BaseModel):
-    # ANNUAL_REPORT | ALM | SHAREHOLDING_PATTERN | BORROWING_PROFILE | PORTFOLIO_PERFORMANCE | UNKNOWN
-    doc_type: str
-    doc_type_label: str    # Human-readable label
-    confidence: float      # 0.0 to 1.0
-    reasoning: str         # One-line explanation
-    key_signals: list[str]  # Signals that triggered this classification
-    # HITL fields — set by user in the UI
-    user_confirmed: bool = False
-    user_override: Optional[str] = None

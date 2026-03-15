@@ -501,8 +501,9 @@ class FinancialExtractor:
             # ITC column header keywords (present in 2A supplier table)
             itc_col_kw = ['itc available', 'itc (₹)', 'input tax credit']
             # Rows to SKIP — reconciliation notes embedded in 2A that reference 3B
-            skip_row_kw = ['itc claimed in gstr-3b', 'itc claimed in 3b',
-                           'claimed in gstr', 'variance', 'reconciliation']
+            skip_row_kw = ['itc available as per gstr-2a',
+                           'difference / variance', 'variance (a - b)',
+                           'reconciliation note', 'timing difference']
             turnover_kw = ['total taxable turnover', 'aggregate turnover',
                            'taxable turnover']
 

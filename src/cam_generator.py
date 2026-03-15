@@ -1,23 +1,30 @@
+# from config import CAM_REPORT_TITLE, CAM_AUTHOR, OUTPUTS_DIR
 """
-cam_generator.py  —  IntelliCredit v1.4
-Credit Appraisal Memorandum  —  PDF + DOCX
+cam_generator.py  —  IntelliCredit v2.0
+INVESTMENT ASSESSMENT REPORT  —  PDF + DOCX
+
+TARGET: 5-6 pages maximum
+- Page 1: Cover (white bg, full entity + loan details, IntelliCredit branding)
+- Page 2: Executive Summary + Financial Analysis + Five Cs
+- Page 3: AI Risk Drivers + Reasoning + SWOT
+- Page 4: External Research + Triangulation + Early Warnings
+- Page 5: Conditions + Recommendation + Sign-off
 
 COLOUR SYSTEM
 ─────────────
-  Navy  #0d1f5c  — ALL structural chrome: header bars, table headers,
-                    section rules, borders, signature block
-  Gold  #c9970a  — Cover accent rule only
-  Green #1a6b2a  — APPROVE decision (badge / banner / gauge segment)
-  Amber #b85c00  — CONDITIONAL decision + early-warning header
-  Red   #b71c1c  — REJECT decision + adverse items
-  White #ffffff  — text on dark backgrounds
-  LBlue #e8edf8  — label-column tint in all info tables
-  Tint  #f5f7fd  — alternating row tint
-  MGray #c6cad8  — grid lines, dividers
-  DGray #4c5068  — footer text, captions, notes
+  Navy  #0d1f5c  — structural chrome, headers, borders
+  Gold  #c9970a  — cover accent only
+  Green #1a6b2a  — APPROVE
+  Amber #b85c00  — CONDITIONAL + warnings
+  Red   #b71c1c  — REJECT + adverse
+  White #ffffff  — text on dark
+  LBlue #e8edf8  — label column tint
+  Tint  #f5f7fd  — alternating rows
+  MGray #c6cad8  — grid lines
+  DGray #4c5068  — footer / captions
 """
 
-from config import CAM_BANK_NAME, CAM_REPORT_TITLE, CAM_AUTHOR, OUTPUTS_DIR
+from config import CAM_REPORT_TITLE, CAM_AUTHOR, OUTPUTS_DIR
 from src.schemas import CreditAppraisalResult
 from datetime import datetime
 import sys
@@ -27,25 +34,27 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-# ── Palette constants ──────────────────────────────────────────────────────────
-NAV = "#0d1f5c"   # deep navy
-NAV2 = "#1a3080"   # section heading navy
-GOLD = "#c9970a"   # gold accent (cover only)
-LBLU = "#e8edf8"   # label column background
-TINT = "#f5f7fd"   # alternating row tint
-MGRY = "#c6cad8"   # grid / divider
-DGRY = "#4c5068"   # footer / caption
-GRN = "#1a6b2a"   # APPROVE
-AMB = "#b85c00"   # CONDITIONAL
-RED = "#b71c1c"   # REJECT
+# ── Palette ───────────────────────────────────────────────────────────────────
+NAV = "#0d1f5c"
+NAV2 = "#1a3080"
+GOLD = "#c9970a"
+LBLU = "#e8edf8"
+TINT = "#f5f7fd"
+MGRY = "#c6cad8"
+DGRY = "#4c5068"
+GRN = "#1a6b2a"
+AMB = "#b85c00"
+RED = "#b71c1c"
 WHT = "#ffffff"
-GRN_L = "#e8f5ea"  # light green tint
-AMB_L = "#fff4e5"  # light amber tint
-RED_L = "#ffeaea"  # light red tint
+GRN_L = "#e8f5ea"
+AMB_L = "#fff4e5"
+RED_L = "#ffeaea"
+
+APP_NAME = "IntelliCredit"          # ← service name, NOT bank name
 
 
 class CAMGenerator:
-    """Generates Credit Appraisal Memorandum in PDF and DOCX."""
+    """Generates INVESTMENT ASSESSMENT REPORT in PDF and DOCX — 5-6 pages."""
 
     # ── public ────────────────────────────────────────────────────────────────
 
@@ -82,108 +91,57 @@ class CAMGenerator:
             return []
         rows = []
         if d.debt_equity_ratio is not None:
-            rows.append(("Debt / Equity Ratio",
-                        f"{d.debt_equity_ratio:.2f}x"))
+            rows.append(("D/E Ratio",           f"{d.debt_equity_ratio:.2f}x"))
         if d.net_worth_inr is not None:
             rows.append(
-                ("Net Worth",                f"Rs. {d.net_worth_inr:,.0f}"))
+                ("Net Worth",            f"Rs. {d.net_worth_inr:,.0f}"))
         if d.dscr is not None:
-            rows.append(("DSCR",                     f"{d.dscr:.2f}x"))
+            rows.append(("DSCR",                 f"{d.dscr:.2f}x"))
         if d.net_profit_margin is not None:
-            rows.append(("Net Profit Margin",
-                        f"{d.net_profit_margin:.1f}%"))
+            rows.append(
+                ("Net Profit Margin",    f"{d.net_profit_margin:.1f}%"))
         if getattr(d, "avg_monthly_balance_inr", None) is not None:
             rows.append(
-                ("Avg Monthly Balance",  f"Rs. {d.avg_monthly_balance_inr:,.0f}"))
-        if getattr(d, "monthly_credit_avg_inr", None) is not None:
-            rows.append(
-                ("Monthly Credit Avg",   f"Rs. {d.monthly_credit_avg_inr:,.0f}"))
+                ("Avg Monthly Bal.",   f"Rs. {d.avg_monthly_balance_inr:,.0f}"))
         if d.data_completeness_pct is not None:
             rows.append(
-                ("Data Completeness",    f"{d.data_completeness_pct:.0f}%"))
-        for i, n in enumerate((getattr(d, "derivation_notes", None) or [])[:3]):
-            rows.append((f"Note {i+1}", n))
+                ("Data Completeness",  f"{d.data_completeness_pct:.0f}%"))
         return rows
 
     # ── risk gauge ────────────────────────────────────────────────────────────
 
-    def _risk_gauge(self, score: float, W=200, H=130):
-        """
-        Semi-circular needle gauge.
-        Left-zone = Green (LOW 0–0.33)
-        Mid-zone  = Amber (MED 0.33–0.66)
-        Right-zone= Red   (HIGH 0.66–1.0)
-        Needle angle maps score 0→180°, score 1→0°.
-        """
-        from reportlab.graphics.shapes import (
-            Drawing, Wedge, Circle, String, Line, Rect
-        )
+    def _risk_gauge(self, score: float, W=160, H=100):
+        from reportlab.graphics.shapes import Drawing, Wedge, Circle, String, Line
         from reportlab.lib import colors as rc
-
         d = Drawing(W, H)
         cx = W / 2
-        cy = H * 0.12           # pivot near bottom
-        ro = H * 0.82           # outer arc radius
-        ri = H * 0.49           # inner cutout radius  (donut thickness)
-        rn = H * 0.70           # needle length
-
-        # ── draw three coloured arc segments ─────────────────────────────────
-        for start_a, end_a, colour in [
-            (180, 120, GRN),      # LOW  — left  60°
-            (120,  60, "#e8a020"),  # MED  — mid   60° (bright amber)
-            (60,   0, RED),      # HIGH — right 60°
-        ]:
-            # outer wedge
-            d.add(Wedge(cx, cy, ro, end_a, start_a,
-                        fillColor=rc.HexColor(colour),
-                        strokeColor=rc.white, strokeWidth=2))
-            # inner white cutout (donut hole)
-            d.add(Wedge(cx, cy, ri, end_a, start_a,
-                        fillColor=rc.white,
-                        strokeColor=rc.white, strokeWidth=1))
-
-        # ── needle ────────────────────────────────────────────────────────────
-        ang = math.radians(180 - score * 180)
-        nx = cx + rn * math.cos(ang)
-        ny = cy + rn * math.sin(ang)
-        # shadow line (offset 1 px for depth)
+        cy = H * 0.10
+        ro = H * 0.85
+        ri = H * 0.50
+        rn = H * 0.72
+        for sa, ea, col in [(180, 120, GRN), (120, 60, "#e8a020"), (60, 0, RED)]:
+            d.add(Wedge(cx, cy, ro, ea, sa, fillColor=rc.HexColor(
+                col),   strokeColor=rc.white, strokeWidth=2))
+            d.add(Wedge(cx, cy, ri, ea, sa, fillColor=rc.white,
+                  strokeColor=rc.white, strokeWidth=1))
+        ang = math.radians(180 - score*180)
+        nx = cx + rn*math.cos(ang)
+        ny = cy + rn*math.sin(ang)
         d.add(Line(cx+1, cy-1, nx+1, ny-1,
-                   strokeColor=rc.HexColor("#aaaacc"), strokeWidth=2))
-        # main needle
-        d.add(Line(cx, cy, nx, ny,
-                   strokeColor=rc.HexColor(NAV), strokeWidth=3.2))
-        # pivot circle
-        d.add(Circle(cx, cy, 7,
-                     fillColor=rc.HexColor(NAV),
-                     strokeColor=rc.white, strokeWidth=1.5))
-
-        # ── score text centred in donut ───────────────────────────────────────
-        sc_col = GRN if score < 0.33 else ("#e8a020" if score < 0.66 else RED)
-        d.add(String(cx, cy + ri * 0.18, f"{score:.3f}",
-                     fontSize=16, fontName="Helvetica-Bold",
-                     fillColor=rc.HexColor(sc_col), textAnchor="middle"))
-
-        # ── axis ticks & labels ───────────────────────────────────────────────
-        for val, deg in [(0.0, 180), (0.5, 90), (1.0, 0)]:
-            ax = cx + (ro + 4) * math.cos(math.radians(deg))
-            ay = cy + (ro + 4) * math.sin(math.radians(deg))
-            d.add(String(ax, ay - 3, str(val), fontSize=6.5,
-                         fillColor=rc.HexColor(DGRY),
-                         textAnchor="middle"))
-
-        # ── zone labels inside arcs ───────────────────────────────────────────
-        for lbl, angle_deg, col in [
-            ("LOW",  150, GRN),
-            ("MED",   90, "#e8a020"),
-            ("HIGH",  30, RED),
-        ]:
-            mid_r = (ro + ri) / 2
-            lx = cx + mid_r * math.cos(math.radians(angle_deg))
-            ly = cy + mid_r * math.sin(math.radians(angle_deg))
-            d.add(String(lx, ly - 3, lbl, fontSize=7.5,
-                         fontName="Helvetica-Bold",
-                         fillColor=rc.white,
-                         textAnchor="middle"))
+              strokeColor=rc.HexColor("#aaaacc"), strokeWidth=2))
+        d.add(Line(cx, cy, nx, ny,         strokeColor=rc.HexColor(
+            NAV),        strokeWidth=3))
+        d.add(Circle(cx, cy, 6, fillColor=rc.HexColor(
+            NAV), strokeColor=rc.white, strokeWidth=1.5))
+        sc = GRN if score < 0.33 else ("#e8a020" if score < 0.66 else RED)
+        d.add(String(cx, cy+ri*0.15, f"{score:.3f}", fontSize=13, fontName="Helvetica-Bold",
+                     fillColor=rc.HexColor(sc), textAnchor="middle"))
+        for lbl, ang_d, col in [("LOW", 150, GRN), ("MED", 90, "#e8a020"), ("HIGH", 30, RED)]:
+            mr = (ro+ri)/2
+            d.add(String(cx+mr*math.cos(math.radians(ang_d)),
+                         cy+mr*math.sin(math.radians(ang_d))-3, lbl,
+                         fontSize=7, fontName="Helvetica-Bold",
+                         fillColor=rc.white, textAnchor="middle"))
         return d
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -203,13 +161,12 @@ class CAMGenerator:
         )
         from reportlab.graphics.shapes import Drawing, Rect, String, Line
 
-        PW, PH = A4                    # 595.3 × 841.9 pt
-        LM = RM = 1.9 * cm
-        TM = 2.4 * cm
-        BM = 2.0 * cm
-        TW = PW - LM - RM              # usable text width ≈ 17.6 cm
+        PW, PH = A4
+        LM = RM = 1.7*cm
+        TM = 2.2*cm
+        BM = 1.8*cm
+        TW = PW - LM - RM
 
-        # colour shortcuts
         C = colors.HexColor
         cNAV = C(NAV)
         cNAV2 = C(NAV2)
@@ -223,150 +180,128 @@ class CAMGenerator:
         cRED = C(RED)
         cWHT = colors.white
 
-        # ── typography ─────────────────────────────────────────────────────────
         SS = getSampleStyleSheet()
         _id = [0]
 
-        def PS(base_name="Normal", **kw):
+        def PS(base="Normal", **kw):
             _id[0] += 1
-            base = kw.pop("parent", SS.get(base_name, SS["Normal"]))
-            return ParagraphStyle(f"_s{_id[0]}", parent=base, **kw)
+            base_s = kw.pop("parent", SS.get(base, SS["Normal"]))
+            return ParagraphStyle(f"_s{_id[0]}", parent=base_s, **kw)
 
-        # body
-        pN = PS(fontSize=9,  fontName="Helvetica",
-                leading=13.5, textColor=colors.black)
-        pB = PS(fontSize=9,  fontName="Helvetica-Bold",
-                leading=13.5, textColor=colors.black)
-        pS = PS(fontSize=7.5, fontName="Helvetica",
-                leading=11,   textColor=cDGR)
-        pSB = PS(fontSize=7.5, fontName="Helvetica-Bold",
-                 leading=11,   textColor=colors.black)
-        pJ = PS(fontSize=9,  fontName="Helvetica",       leading=14,
+        pN = PS(fontSize=8.5, fontName="Helvetica",
+                leading=12.5, textColor=colors.black)
+        pB = PS(fontSize=8.5, fontName="Helvetica-Bold",
+                leading=12.5, textColor=colors.black)
+        pS = PS(fontSize=7,   fontName="Helvetica",
+                leading=10.5, textColor=cDGR)
+        pNC = PS(fontSize=8.5, fontName="Helvetica",      leading=12.5,
+                 alignment=TA_CENTER, textColor=colors.black)
+        pBC = PS(fontSize=8.5, fontName="Helvetica-Bold", leading=12.5,
+                 alignment=TA_CENTER, textColor=colors.black)
+        pWC = PS(fontSize=8.5, fontName="Helvetica-Bold",
+                 leading=12.5, alignment=TA_CENTER, textColor=cWHT)
+        pWL = PS(fontSize=8.5, fontName="Helvetica-Bold",
+                 leading=12.5, textColor=cWHT)
+        pJ = PS(fontSize=8.5, fontName="Helvetica",      leading=13,
                 alignment=TA_JUSTIFY, textColor=colors.black)
-        # centred variants
-        pNC = PS(fontSize=9,  fontName="Helvetica",       leading=13.5,
-                 alignment=TA_CENTER, textColor=colors.black)
-        pBC = PS(fontSize=9,  fontName="Helvetica-Bold",  leading=13.5,
-                 alignment=TA_CENTER, textColor=colors.black)
-        pWC = PS(fontSize=9,  fontName="Helvetica-Bold",
-                 leading=13.5, alignment=TA_CENTER, textColor=cWHT)
-        pWL = PS(fontSize=9,  fontName="Helvetica-Bold",
-                 leading=13.5, textColor=cWHT)
 
-        # ── runtime data ───────────────────────────────────────────────────────
         pred = result.risk_prediction
         ds, cs, dec_bg, dec_lt, dec_label = self._pred_strings(pred)
         now = datetime.now()
-        ref = (f"CAM/{now.year}/"
-               f"{result.company_name[:4].upper()}/"
-               f"{now.strftime('%m%d%H%M')}")
+        ref = f"CAM/{now.year}/{result.company_name[:4].upper()}/{now.strftime('%m%d%H%M')}"
 
-        # ── page background callbacks ──────────────────────────────────────────
+        # ── page callbacks ────────────────────────────────────────────────────
 
         def _cover_bg(canv, doc):
             canv.saveState()
-            # full-bleed navy top bar (≈ 3.8 cm)
+            # white background — full page
+            canv.setFillColor(colors.white)
+            canv.rect(0, 0, PW, PH, fill=1, stroke=0)
+            # navy top bar (2.8 cm)
             canv.setFillColor(cNAV)
-            canv.rect(0, PH - 3.8*cm, PW, 3.8*cm, fill=1, stroke=0)
-            # bank name centred in bar
-            canv.setFont("Helvetica-Bold", 16)
+            canv.rect(0, PH-2.8*cm, PW, 2.8*cm, fill=1, stroke=0)
+            # APP_NAME in bar
+            canv.setFont("Helvetica-Bold", 15)
             canv.setFillColor(cWHT)
-            canv.drawCentredString(PW/2, PH - 1.85*cm, CAM_BANK_NAME.upper())
-            # sub-line
-            canv.setFont("Helvetica", 9)
+            canv.drawCentredString(PW/2, PH-1.6*cm, APP_NAME.upper())
+            canv.setFont("Helvetica", 8)
             canv.setFillColor(C("#b8c8f0"))
             canv.drawCentredString(
-                PW/2, PH - 2.7*cm, "Credit Risk Management Division")
-            # gold divider rule
+                PW/2, PH-2.3*cm, "AI-Powered Credit Intelligence Engine")
+            # gold rule
             canv.setStrokeColor(cGOLD)
-            canv.setLineWidth(2.2)
-            canv.line(LM, PH - 3.95*cm, PW - RM, PH - 3.95*cm)
+            canv.setLineWidth(2)
+            canv.line(LM, PH-2.95*cm, PW-RM, PH-2.95*cm)
             # navy bottom strip
             canv.setFillColor(cNAV)
-            canv.rect(0, 0, PW, 1.35*cm, fill=1, stroke=0)
-            canv.setFont("Helvetica", 7)
+            canv.rect(0, 0, PW, 1.1*cm, fill=1, stroke=0)
+            canv.setFont("Helvetica", 6.5)
             canv.setFillColor(C("#b8c8f0"))
             canv.drawCentredString(
-                PW/2, 0.48*cm,
-                "STRICTLY CONFIDENTIAL  —  FOR INTERNAL USE ONLY  —  NOT FOR DISTRIBUTION")
+                PW/2, 0.38*cm, "STRICTLY CONFIDENTIAL  —  FOR INTERNAL USE ONLY")
             # watermark
             canv.saveState()
-            canv.translate(PW/2, PH/2 - 1*cm)
+            canv.translate(PW/2, PH/2)
             canv.rotate(35)
-            canv.setFont("Helvetica-Bold", 58)
-            canv.setFillColor(colors.Color(0.78, 0.82, 0.92, alpha=0.10))
+            canv.setFont("Helvetica-Bold", 54)
+            canv.setFillColor(colors.Color(0.85, 0.87, 0.93, alpha=0.08))
             canv.drawCentredString(0, 0, "CONFIDENTIAL")
             canv.restoreState()
             canv.restoreState()
 
         def _body_bg(canv, doc):
             canv.saveState()
-            # ── header ──────────────────────────────────────────────────────
             canv.setFillColor(cNAV)
-            canv.rect(0, PH - 1.35*cm, PW, 1.35*cm, fill=1, stroke=0)
-            # bank name — left
-            canv.setFont("Helvetica-Bold", 8)
+            canv.rect(0, PH-1.2*cm, PW, 1.2*cm, fill=1, stroke=0)
+            canv.setFont("Helvetica-Bold", 7.5)
             canv.setFillColor(cWHT)
-            canv.drawString(LM, PH - 0.82*cm, CAM_BANK_NAME.upper())
-            # ref + page — right
-            canv.setFont("Helvetica", 7.5)
+            canv.drawString(LM, PH-0.75*cm, APP_NAME.upper())
+            canv.setFont("Helvetica", 7)
             canv.setFillColor(C("#b8c8f0"))
-            canv.drawRightString(PW - RM, PH - 0.82*cm,
-                                 f"Ref: {ref}   |   Page {doc.page}")
-            # gold hairline beneath header
+            canv.drawRightString(
+                PW-RM, PH-0.75*cm, f"Ref: {ref}   |   Page {doc.page}")
             canv.setStrokeColor(cGOLD)
-            canv.setLineWidth(1.4)
-            canv.line(0, PH - 1.46*cm, PW, PH - 1.46*cm)
-            # ── footer ──────────────────────────────────────────────────────
+            canv.setLineWidth(1.2)
+            canv.line(0, PH-1.3*cm, PW, PH-1.3*cm)
             canv.setStrokeColor(cMGR)
             canv.setLineWidth(0.5)
-            canv.line(LM, 1.5*cm, PW - RM, 1.5*cm)
-            canv.setFont("Helvetica", 7)
+            canv.line(LM, 1.3*cm, PW-RM, 1.3*cm)
+            canv.setFont("Helvetica", 6.5)
             canv.setFillColor(cDGR)
-            canv.drawString(LM, 0.82*cm,
-                            "STRICTLY CONFIDENTIAL  —  FOR INTERNAL USE ONLY")
-            canv.drawRightString(PW - RM, 0.82*cm,
-                                 f"{now.strftime('%d %b %Y, %I:%M %p')}   |   {CAM_AUTHOR}")
+            canv.drawString(
+                LM, 0.65*cm, "STRICTLY CONFIDENTIAL  —  FOR INTERNAL USE ONLY")
+            canv.drawRightString(
+                PW-RM, 0.65*cm, f"{now.strftime('%d %b %Y')}   |   {CAM_AUTHOR}")
             canv.restoreState()
 
-        # ── page templates + frames ────────────────────────────────────────────
-        cover_frame = Frame(LM, 1.5*cm, TW, PH - 4.1*cm - 1.5*cm,
-                            id="cover", showBoundary=0)
-        body_frame = Frame(LM, BM, TW, PH - TM - BM,
+        # ── frames & templates ────────────────────────────────────────────────
+        cover_frame = Frame(LM, 1.2*cm, TW, PH-3.1*cm-1.2 *
+                            cm, id="cover", showBoundary=0)
+        body_frame = Frame(LM, BM,     TW, PH-TM-BM,
                            id="body",  showBoundary=0)
-
-        pdf_doc = BaseDocTemplate(
-            output_path, pagesize=A4,
-            leftMargin=LM, rightMargin=RM,
-            topMargin=TM,  bottomMargin=BM,
-        )
+        pdf_doc = BaseDocTemplate(output_path, pagesize=A4,
+                                  leftMargin=LM, rightMargin=RM, topMargin=TM, bottomMargin=BM)
         pdf_doc.addPageTemplates([
             PageTemplate(id="Cover", frames=[cover_frame], onPage=_cover_bg),
             PageTemplate(id="Body",  frames=[body_frame],  onPage=_body_bg),
         ])
 
-        # ── reusable table builders ────────────────────────────────────────────
+        # ── helpers ───────────────────────────────────────────────────────────
 
-        def info_tbl(rows, lw=5.0*cm, fs=9, pad=5):
-            """Two-column label→value info table. rows = list of (label, value) pairs."""
+        def info_tbl(rows, lw=4.5*cm, fs=8.5, pad=4):
             rw = TW - lw
-            lp = pad + 1
-            data = []
-            for lbl, val in rows:
-                data.append([
-                    Paragraph(str(lbl), PS(fontSize=fs, fontName="Helvetica-Bold",
-                                           leading=fs+4, textColor=colors.black)),
-                    Paragraph(str(val), PS(fontSize=fs, fontName="Helvetica",
-                                           leading=fs+4, textColor=colors.black)),
-                ])
+            data = [[Paragraph(str(l), PS(fontSize=fs, fontName="Helvetica-Bold",
+                                          leading=fs+3.5, textColor=colors.black)),
+                     Paragraph(str(v), PS(fontSize=fs, fontName="Helvetica",
+                                          leading=fs+3.5, textColor=colors.black))]
+                    for l, v in rows]
             t = Table(data, colWidths=[lw, rw])
             t.setStyle(TableStyle([
                 ("BACKGROUND",    (0, 0), (0, -1), cLBL),
-                ("BACKGROUND",    (1, 0), (1, -1), cWHT),
                 ("ROWBACKGROUNDS", (1, 0), (1, -1), [cWHT, cTNT]),
-                ("BOX",           (0, 0), (-1, -1), 0.7, cNAV2),
-                ("INNERGRID",     (0, 0), (-1, -1), 0.3, cMGR),
-                ("LEFTPADDING",   (0, 0), (-1, -1), lp),
+                ("BOX",           (0, 0), (-1, -1), 0.6, cNAV2),
+                ("INNERGRID",     (0, 0), (-1, -1), 0.25, cMGR),
+                ("LEFTPADDING",   (0, 0), (-1, -1), pad+1),
                 ("RIGHTPADDING",  (0, 0), (-1, -1), pad),
                 ("TOPPADDING",    (0, 0), (-1, -1), pad),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), pad),
@@ -374,479 +309,317 @@ class CAMGenerator:
             ]))
             return t
 
-        def section_hdr(title):
-            """Navy left-bar + grey hairline + bold title — section separator."""
-            BAR = 15        # total height of the drawing
-            drw = Drawing(TW, BAR + 4)
-            # solid navy left bar
-            drw.add(Rect(0, 0, 4, BAR + 4,
-                         fillColor=cNAV, strokeColor=None))
-            # hairline rule spanning full width at bottom
-            drw.add(Line(0, 0, TW, 0,
-                         strokeColor=cMGR, strokeWidth=0.6))
-            # title text
-            drw.add(String(11, 3.5, title,
-                           fontSize=10.5, fontName="Helvetica-Bold",
+        def shdr(title):
+            drw = Drawing(TW, 16)
+            drw.add(Rect(0, 0, 3.5, 16, fillColor=cNAV, strokeColor=None))
+            drw.add(Line(0, 0, TW, 0, strokeColor=cMGR, strokeWidth=0.5))
+            drw.add(String(9, 3, title, fontSize=9.5, fontName="Helvetica-Bold",
                            fillColor=C(NAV2)))
             return drw
 
-        def col_tbl(rows, widths, hdr_col=NAV):
-            """Multi-column table. rows[0] = header. Returns styled Table."""
+        def col_tbl(rows, widths, hdr=NAV):
             t = Table(rows, colWidths=widths, repeatRows=1)
             t.setStyle(TableStyle([
-                ("BACKGROUND",    (0, 0), (-1, 0),  C(hdr_col)),
+                ("BACKGROUND",    (0, 0), (-1, 0),  C(hdr)),
                 ("TEXTCOLOR",     (0, 0), (-1, 0),  cWHT),
                 ("FONTNAME",      (0, 0), (-1, 0),  "Helvetica-Bold"),
-                ("FONTSIZE",      (0, 0), (-1, -1),  8.5),
-                ("LEADING",       (0, 0), (-1, -1),  12),
-                ("BOX",           (0, 0), (-1, -1),  0.7, cNAV2),
-                ("INNERGRID",     (0, 0), (-1, -1),  0.3, cMGR),
-                ("LEFTPADDING",   (0, 0), (-1, -1),  6),
-                ("RIGHTPADDING",  (0, 0), (-1, -1),  6),
-                ("TOPPADDING",    (0, 0), (-1, -1),  5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1),  5),
+                ("FONTSIZE",      (0, 0), (-1, -1),  8),
+                ("LEADING",       (0, 0), (-1, -1),  11.5),
+                ("BOX",           (0, 0), (-1, -1),  0.6, cNAV2),
+                ("INNERGRID",     (0, 0), (-1, -1),  0.25, cMGR),
+                ("LEFTPADDING",   (0, 0), (-1, -1),  5),
+                ("RIGHTPADDING",  (0, 0), (-1, -1),  5),
+                ("TOPPADDING",    (0, 0), (-1, -1),  4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1),  4),
                 ("VALIGN",        (0, 0), (-1, -1),  "MIDDLE"),
                 ("ROWBACKGROUNDS", (0, 1), (-1, -1),  [cWHT, cTNT]),
             ]))
             return t
 
-        def gap(h):
-            return Spacer(1, h * cm)
+        def gap(h): return Spacer(1, h*cm)
 
         # ══════════════════════════════════════════════════════════════════════
-        # STORY
+        # PAGE 1 — COVER
         # ══════════════════════════════════════════════════════════════════════
         story = [NextPageTemplate("Cover")]
+        story.append(gap(0.5))
 
-        # ── COVER PAGE ─────────────────────────────────────────────────────────
-        story.append(gap(0.8))   # clear the navy bar
+        story.append(Paragraph("INVESTMENT ASSESSMENT REPORT",
+                               PS(fontSize=19, fontName="Helvetica-Bold", alignment=TA_CENTER,
+                                  textColor=C(NAV), spaceAfter=4)))
+        story.append(Paragraph("Internal Document  —  For Investment Committee",
+                               PS(fontSize=8, fontName="Helvetica", alignment=TA_CENTER,
+                                  textColor=cDGR, spaceAfter=0)))
+        story.append(gap(0.2))
+        story.append(HRFlowable(width="70%", thickness=1.6,
+                     color=cGOLD, hAlign="CENTER"))
+        story.append(gap(0.35))
 
-        story.append(Paragraph(
-            "CREDIT APPRAISAL MEMORANDUM",
-            PS(fontSize=22, fontName="Helvetica-Bold",
-               alignment=TA_CENTER, textColor=C(NAV), spaceAfter=5)
-        ))
-        story.append(Paragraph(
-            "Internal Document  —  Credit Committee Submission",
-            PS(fontSize=9, fontName="Helvetica",
-               alignment=TA_CENTER, textColor=cDGR, spaceAfter=0)
-        ))
-        story.append(gap(0.28))
-        story.append(HRFlowable(width="75%", thickness=1.8,
-                                color=cGOLD, hAlign="CENTER"))
-        story.append(gap(0.55))
-
-        # cover detail table — navy label column, clean value column
-        cov_rows_data = [
-            ("Applicant / Borrower",    result.company_name),
-            ("Reference No.",           ref),
-            ("Loan Purpose",
-             getattr(result, "loan_purpose", "Working Capital")),
-            ("Facility Amount",
-             (f"Rs. {pred.loan_limit_inr:,.0f}  "
-              f"(Rs. {pred.loan_limit_inr/100000:.2f} Lakhs)")
-             if pred else "N/A"),
-            ("AI Decision",             dec_label),
-            ("Risk Score",
-             f"{pred.risk_score:.3f} / 1.000  ({cs} risk)" if pred else "N/A"),
-            ("Interest Rate",
-             f"{pred.interest_rate:.2f}% p.a." if pred else "N/A"),
-            ("Report Date",             now.strftime("%d %B %Y")),
-            ("Prepared By",             CAM_AUTHOR),
-            ("Classification",          "STRICTLY CONFIDENTIAL"),
+        # ── Two-column cover table: Entity | Loan ────────────────────────────
+        entity_rows = [
+            ("Company / Borrower", result.company_name),
+            ("CIN",    getattr(result, "cin", None) or "N/A"),
+            ("PAN",    result.itr_data.pan if result.itr_data else getattr(
+                result, "pan", "N/A")),
+            ("GSTIN",  result.gst_data.gstin if result.gst_data else "N/A"),
+            ("Sector", getattr(result, "sector", "—")),
         ]
-        # build as raw list for custom per-row styling
-        cov_tbl_data = [
-            [Paragraph(l, PS(fontSize=9, fontName="Helvetica-Bold",
-                             leading=13, textColor=cWHT)),
-             Paragraph(v, PS(fontSize=9, fontName="Helvetica",
-                             leading=13, textColor=colors.black))]
-            for l, v in cov_rows_data
+        loan_rows = [
+            ("Loan Type",    getattr(result, "loan_type",    "—")),
+            ("Amount Req.",
+             f"Rs. {getattr(result, 'loan_amount_cr', '—')} Cr"),
+            ("Tenure",
+             f"{getattr(result, 'loan_tenure_months', '—')} months"),
+            ("AI Decision",  dec_label),
+            ("Risk Score",   f"{pred.risk_score:.3f}" if pred else "N/A"),
         ]
-        cov_tbl = Table(cov_tbl_data, colWidths=[5.6*cm, TW - 5.6*cm])
-        cov_style = TableStyle([
-            ("BACKGROUND",    (0, 0), (0, -1),  cNAV),     # label col navy
-            ("BACKGROUND",    (1, 0), (1, -1),  cWHT),
-            ("ROWBACKGROUNDS", (1, 0), (1, -1),  [cWHT, cTNT]),
-            ("BOX",           (0, 0), (-1, -1),  1.1, cNAV),
-            ("INNERGRID",     (0, 0), (-1, -1),  0.4, cMGR),
-            ("LEFTPADDING",   (0, 0), (-1, -1),  9),
-            ("RIGHTPADDING",  (0, 0), (-1, -1),  9),
-            ("TOPPADDING",    (0, 0), (-1, -1),  7),
-            ("BOTTOMPADDING", (0, 0), (-1, -1),  7),
-            ("VALIGN",        (0, 0), (-1, -1),  "MIDDLE"),
-            # Decision row (row 4) — green / amber / red background
-            ("BACKGROUND",    (1, 4), (1, 4),   C(dec_bg)),
-            ("TEXTCOLOR",     (1, 4), (1, 4),   cWHT),
-            ("FONTNAME",      (1, 4), (1, 4),   "Helvetica-Bold"),
-            # Classification row — amber tint
-            ("BACKGROUND",    (1, -1), (1, -1),  C(AMB_L)),
-            ("TEXTCOLOR",     (1, -1), (1, -1),  C(AMB)),
-            ("FONTNAME",      (1, -1), (1, -1),  "Helvetica-Bold"),
-        ])
-        cov_tbl.setStyle(cov_style)
-        story.append(cov_tbl)
-        story.append(gap(0.65))
 
-        # credit committee approval block
-        story.append(Paragraph(
-            "FOR CREDIT COMMITTEE USE",
-            PS(fontSize=8.5, fontName="Helvetica-Bold",
-               alignment=TA_CENTER, textColor=C(NAV2))
-        ))
-        story.append(gap(0.15))
-        cw3 = TW / 3
-        appr_data = [
-            # header row
-            [Paragraph("Prepared by",  pWC),
-             Paragraph("Reviewed by",  pWC),
-             Paragraph("Approved by",  pWC)],
-            # role row
-            [Paragraph("Credit Analyst",          pNC),
-             Paragraph("Credit Manager / AGM",    pNC),
-             Paragraph("Chief Credit Officer",    pNC)],
-            # signature row
-            [Paragraph("\n\n\n___________________________", pNC),
-             Paragraph("\n\n\n___________________________", pNC),
-             Paragraph("\n\n\n___________________________", pNC)],
-            # name row
-            [Paragraph("Name & Emp. ID", pS),
-             Paragraph("Name & Emp. ID", pS),
-             Paragraph("Name & Emp. ID", pS)],
-            # date row
-            [Paragraph("Date:  _________________", pS),
-             Paragraph("Date:  _________________", pS),
-             Paragraph("Date:  _________________", pS)],
-        ]
-        appr_tbl = Table(appr_data, colWidths=[cw3, cw3, cw3])
-        appr_tbl.setStyle(TableStyle([
-            ("BOX",           (0, 0), (-1, -1), 0.8, cNAV),
-            ("INNERGRID",     (0, 0), (-1, -1), 0.4, cMGR),
-            ("BACKGROUND",    (0, 0), (-1, 1),  cNAV),
-            ("BACKGROUND",    (0, 2), (-1, -1),  cTNT),
-            ("TOPPADDING",    (0, 0), (-1, -1),  6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1),  6),
-            ("LEFTPADDING",   (0, 0), (-1, -1),  5),
-            ("RIGHTPADDING",  (0, 0), (-1, -1),  5),
-            ("ALIGN",         (0, 0), (-1, -1),  "CENTER"),
+        def mini_tbl(rows, lw=3.0*cm):
+            rw = TW/2 - lw - 0.3*cm
+            data = [[Paragraph(str(l), PS(fontSize=8, fontName="Helvetica-Bold",
+                                          leading=11, textColor=colors.black)),
+                     Paragraph(str(v), PS(fontSize=8, fontName="Helvetica",
+                                          leading=11, textColor=colors.black))]
+                    for l, v in rows]
+            t = Table(data, colWidths=[lw, rw])
+            t.setStyle(TableStyle([
+                ("BACKGROUND",    (0, 0), (0, -1), cLBL),
+                ("ROWBACKGROUNDS", (1, 0), (1, -1), [cWHT, cTNT]),
+                ("BOX",           (0, 0), (-1, -1), 0.5, cNAV2),
+                ("INNERGRID",     (0, 0), (-1, -1), 0.2, cMGR),
+                ("LEFTPADDING",   (0, 0), (-1, -1), 5),
+                ("RIGHTPADDING",  (0, 0), (-1, -1), 5),
+                ("TOPPADDING",    (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+            ]))
+            return t
+
+        cover_cols = Table(
+            [[mini_tbl(entity_rows), mini_tbl(loan_rows)]],
+            colWidths=[TW/2, TW/2]
+        )
+        cover_cols.setStyle(TableStyle([
+            ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 3),
+            ("TOPPADDING",    (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
         ]))
-        story.append(appr_tbl)
+        story.append(cover_cols)
+        story.append(gap(0.3))
 
-        # ── body pages ─────────────────────────────────────────────────────────
+        # ── Decision banner ───────────────────────────────────────────────────
+        banner_data = [[
+            Paragraph(f"<b>{dec_label}</b>",
+                      PS(fontSize=12, fontName="Helvetica-Bold",
+                         alignment=TA_CENTER, textColor=cWHT))
+        ]]
+        banner = Table(banner_data, colWidths=[TW])
+        banner.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, -1), C(dec_bg)),
+            ("TOPPADDING",    (0, 0), (-1, -1), 10),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+        ]))
+        story.append(banner)
+        story.append(gap(0.3))
+
+        # ── Gauge + key metrics row ───────────────────────────────────────────
+        if pred:
+            gauge = self._risk_gauge(pred.risk_score, W=130, H=84)
+            metrics_rows = [
+                ("Risk Score",    f"{pred.risk_score:.3f} / 1.000"),
+                ("Risk Category", cs),
+                ("Loan Limit",    f"Rs. {pred.loan_limit_inr:,.0f}"),
+                ("Interest Rate", f"{pred.interest_rate:.2f}% p.a."),
+                ("Reference",     ref),
+                ("Report Date",   now.strftime("%d %B %Y")),
+            ]
+            metrics_tbl = mini_tbl(metrics_rows, lw=3.2*cm)
+            gauge_wrap = Table([[gauge]], colWidths=[4.5*cm])
+            gauge_wrap.setStyle(TableStyle([
+                ("ALIGN",  (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("BOX",    (0, 0), (-1, -1), 0.5, cMGR),
+                ("BACKGROUND", (0, 0), (-1, -1), cTNT),
+                ("TOPPADDING",    (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]))
+            row_wrap = Table([[gauge_wrap, metrics_tbl]],
+                             colWidths=[4.8*cm, TW-4.8*cm])
+            row_wrap.setStyle(TableStyle([
+                ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING",  (0, 0), (-1, -1), 4),
+                ("TOPPADDING",    (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+            ]))
+            story.append(row_wrap)
+            story.append(gap(0.3))
+
+        # ── Signature block ───────────────────────────────────────────────────
+        cw3 = TW / 3
+        sig_data = [
+            [Paragraph("Prepared by", pWC), Paragraph(
+                "Reviewed by", pWC), Paragraph("Approved by", pWC)],
+            [Paragraph("Credit Analyst", pNC), Paragraph(
+                "Credit Manager", pNC), Paragraph("Chief Credit Officer", pNC)],
+            [Paragraph("\n\n___________________", pNC)]*3,
+            [Paragraph("Date: _______________", pS)]*3,
+        ]
+        sig_tbl = Table(sig_data, colWidths=[cw3, cw3, cw3])
+        sig_tbl.setStyle(TableStyle([
+            ("BOX",           (0, 0), (-1, -1), 0.7, cNAV),
+            ("INNERGRID",     (0, 0), (-1, -1), 0.3, cMGR),
+            ("BACKGROUND",    (0, 0), (-1, 1),  cNAV),
+            ("BACKGROUND",    (0, 2), (-1, -1), cTNT),
+            ("TOPPADDING",    (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 4),
+            ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
+        ]))
+        story.append(sig_tbl)
+
+        # ── Body pages ────────────────────────────────────────────────────────
         story.append(NextPageTemplate("Body"))
         story.append(PageBreak())
 
         # ══════════════════════════════════════════════════════════════════════
-        # SECTION 1  —  EXECUTIVE SUMMARY
+        # PAGE 2 — FINANCIAL ANALYSIS + FIVE Cs
         # ══════════════════════════════════════════════════════════════════════
-        story.append(section_hdr("SECTION 1   —   EXECUTIVE SUMMARY"))
-        story.append(gap(0.28))
+        story.append(
+            shdr("SECTION 1   —   EXECUTIVE SUMMARY & FINANCIAL ANALYSIS"))
+        story.append(gap(0.15))
 
-        if pred:
-            # ── small gauge, centred on its own line ──────────────────────────
-            gauge = self._risk_gauge(pred.risk_score, W=148, H=96)
-
-            # decision badge
-            badge_d = Table(
-                [[Paragraph(f"<b>{dec_label}</b>",
-                            PS(fontSize=9, fontName="Helvetica-Bold",
-                                alignment=TA_CENTER, textColor=cWHT))]],
-                colWidths=[4.4*cm]
-            )
-            badge_d.setStyle(TableStyle([
-                ("BACKGROUND",    (0, 0), (-1, -1), C(dec_bg)),
+        # Decisive factor
+        if pred and getattr(pred, "decisive_factor", ""):
+            df_t = Table([[Paragraph(
+                f"<b>⚡ DECISIVE FACTOR:</b>  {pred.decisive_factor}", pJ)]],
+                colWidths=[TW])
+            df_t.setStyle(TableStyle([
+                ("BOX",           (0, 0), (-1, -1), 0.8, cNAV2),
+                ("BACKGROUND",    (0, 0), (-1, -1), cLBL),
+                ("LEFTPADDING",   (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING",  (0, 0), (-1, -1), 10),
                 ("TOPPADDING",    (0, 0), (-1, -1), 6),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("BOX",           (0, 0), (-1, -1), 0, cWHT),
             ]))
+            story.append(df_t)
+            story.append(gap(0.15))
 
-            # gauge card — narrow, centred
-            gauge_card = Table(
-                [[gauge],
-                 [Paragraph("RISK SCORE GAUGE",
-                            PS(fontSize=7, fontName="Helvetica-Bold",
-                                alignment=TA_CENTER, textColor=cDGR))],
-                 [badge_d],
-                 [Paragraph(f"Score: {pred.risk_score:.3f}   |   {cs} Risk",
-                            PS(fontSize=7, fontName="Helvetica",
-                                alignment=TA_CENTER, textColor=cDGR,
-                                spaceBefore=3))]],
-                colWidths=[4.8*cm],
-                hAlign="CENTER"
-            )
-            gauge_card.setStyle(TableStyle([
-                ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
-                ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-                ("TOPPADDING",    (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-                ("BOX",           (0, 0), (-1, -1), 0.6, cMGR),
-                ("BACKGROUND",    (0, 0), (-1, -1), cTNT),
-            ]))
-
-            # full-width wrapper to centre the card
-            gauge_wrapper = Table([[gauge_card]], colWidths=[TW])
-            gauge_wrapper.setStyle(TableStyle([
-                ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
-                ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-                ("TOPPADDING",    (0, 0), (-1, -1), 0),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-                ("LEFTPADDING",   (0, 0), (-1, -1), 0),
-                ("RIGHTPADDING",  (0, 0), (-1, -1), 0),
-            ]))
-            story.append(gauge_wrapper)
-            story.append(gap(0.25))
-
-            # ── executive summary table — full width, starts on next line ─────
-            exec_rows = [
-                ("Company / Borrower",  result.company_name),
-                ("GSTIN",
-                 result.gst_data.gstin if result.gst_data else "N/A"),
-                ("Constitution",
-                 getattr(result, "constitution", "Private Limited Company")),
-                ("Industry / Sector",
-                 getattr(result, "sector", "—")),
-                ("Reference No.",       ref),
-                ("Report Date",         now.strftime("%d-%m-%Y")),
-                ("AI Decision",         dec_label),
-                ("Risk Category",       cs),
-                ("Risk Score",          f"{pred.risk_score:.3f} / 1.000"),
-                ("Recommended Limit",
-                 f"Rs. {pred.loan_limit_inr:,.0f}  "
-                 f"(Rs. {pred.loan_limit_inr/100000:.2f} Lakhs)"),
-                ("Interest Rate",       f"{pred.interest_rate:.2f}% p.a."),
-            ]
-            et = info_tbl(exec_rows, lw=5.0*cm, fs=9, pad=5)
-
-            # highlight decision row (index 6 = "AI Decision")
-            et.setStyle(TableStyle([
-                ("BACKGROUND", (1, 6), (1, 6), C(dec_bg)),
-                ("TEXTCOLOR",  (1, 6), (1, 6), cWHT),
-                ("FONTNAME",   (1, 6), (1, 6), "Helvetica-Bold"),
-            ]))
-            story.append(et)
-        else:
-            story.append(info_tbl([
-                ("Company",   result.company_name),
-                ("GSTIN",     result.gst_data.gstin if result.gst_data else "N/A"),
-                ("Date",      now.strftime("%d-%m-%Y")),
-                ("Decision",  "Pending"),
-            ]))
-        story.append(gap(0.4))
-
-        # ══════════════════════════════════════════════════════════════════════
-        # SECTION 2  —  BORROWER PROFILE
-        # ══════════════════════════════════════════════════════════════════════
-        story.append(section_hdr("SECTION 2   —   BORROWER PROFILE"))
-        story.append(gap(0.22))
-        story.append(info_tbl([
-            ("Legal Name",          result.company_name),
-            ("GSTIN",
-             result.gst_data.gstin if result.gst_data else "N/A"),
-            ("PAN",
-             result.itr_data.pan if result.itr_data else "N/A"),
-            ("Assessment Year",
-             result.itr_data.assessment_year if result.itr_data else "N/A"),
-            ("Constitution",        "Private Limited Company"),
-            ("Business Activity",   getattr(result, "sector", "—")),
-            ("Key Promoters",
-             getattr(result, "promoter_name", "As per application")),
-            ("Registered Office",   "As per MCA records"),
-        ]))
-        story.append(gap(0.4))
-
-        # ══════════════════════════════════════════════════════════════════════
-        # SECTION 3  —  FINANCIAL ANALYSIS
-        # ══════════════════════════════════════════════════════════════════════
-        story.append(section_hdr("SECTION 3   —   FINANCIAL ANALYSIS"))
-        story.append(gap(0.2))
-
-        sub_hdr = PS(fontSize=9, fontName="Helvetica-Bold", leading=13,
-                     textColor=C(NAV2), spaceBefore=4, spaceAfter=6)
-
-        story.append(Paragraph(
-            "3.1   Key Financial Ratios  (auto-derived from documents)", sub_hdr))
-        dr = self._derived_rows(result)
-        if dr:
-            story.append(info_tbl(dr, fs=8.5, pad=4))
-        else:
-            story.append(Paragraph(
-                "Financial ratios could not be derived — upload ITR and Bank Statement.", pS))
-        story.append(gap(0.2))
-
-        story.append(Paragraph("3.2   GST Reconciliation", sub_hdr))
-        rec = result.gst_reconciliation
+        # Two columns: Financial Ratios | GST + Bank
+        col_left_rows = self._derived_rows(result)
         gst = result.gst_data
-        if rec:
-            variance_pct = getattr(rec, "variance_pct", 0) or 0
-            risk_flag = getattr(rec, "risk_flag", False)
-            mismatches = getattr(rec, "total_mismatches", 0) or 0
-            status_txt = f"⚠️  RISK FLAG — {mismatches} mismatch(es), max variance {variance_pct:.1f}%" if risk_flag else f"✅  Passed — Variance {variance_pct:.1f}%"
-            rec_rows = [("Reconciliation Status", status_txt)]
-            if gst:
-                rec_rows += [
-                    ("GSTIN",          gst.gstin or "N/A"),
-                    ("Turnover (3B)",
-                     f"Rs. {gst.turnover:,.0f}" if gst.turnover else "N/A"),
-                    ("ITC Claimed (3B)",
-                     f"Rs. {gst.itc_claimed:,.0f}" if gst.itc_claimed else "N/A"),
-                ]
-            if variance_pct > 0:
-                rec_rows.append(
-                    ("ITC Variance",  f"{variance_pct:.2f}%  {'(HIGH — Audit Recommended)' if variance_pct > 20 else '(Acceptable)'}"))
-            rec_rows.append(("Summary", getattr(rec, "summary", "") or "—"))
-            story.append(info_tbl(rec_rows, fs=8.5, pad=4))
-        elif gst:
-            story.append(info_tbl([
-                ("GSTIN",          gst.gstin or "N/A"),
-                ("Turnover (3B)",
-                 f"Rs. {gst.turnover:,.0f}" if gst.turnover else "N/A"),
-                ("ITC Claimed",
-                 f"Rs. {gst.itc_claimed:,.0f}" if gst.itc_claimed else "N/A"),
-                ("Total Tax Paid",
-                 f"Rs. {gst.total_tax:,.0f}" if gst.total_tax else "N/A"),
-            ], fs=8.5, pad=4))
-        else:
-            story.append(Paragraph("GST data not available.", pS))
-        story.append(gap(0.2))
-
-        story.append(Paragraph("3.3   Bank Statement Summary", sub_hdr))
         bk = result.bank_data
         d = result.derived_financials
+        col_right_rows = []
+        if gst:
+            col_right_rows.append(("GSTIN",         gst.gstin or "N/A"))
+            col_right_rows.append(
+                ("GST Turnover",   f"Rs.{gst.turnover:,.0f}" if gst.turnover else "N/A"))
+            col_right_rows.append(
+                ("ITC Claimed",    f"Rs.{gst.itc_claimed:,.0f}" if gst.itc_claimed else "N/A"))
         if bk:
-            avg_bal = getattr(bk, "average_monthly_balance", 0) or 0
-            if avg_bal == 0 and d:
-                avg_bal = getattr(d, "avg_monthly_balance_inr", 0) or 0
-            avg_bal_str = f"Rs. {avg_bal:,.0f}" if avg_bal else "N/A"
-            story.append(info_tbl([
-                ("Total Credits (period)",
-                 f"Rs. {bk.total_credits:,.0f}"
-                 if getattr(bk, "total_credits", None) else "N/A"),
-                ("Total Debits (period)",
-                 f"Rs. {bk.total_debits:,.0f}"
-                 if getattr(bk, "total_debits", None) else "N/A"),
-                ("Avg Monthly Balance",  avg_bal_str),
-                ("EMI Bounces",
-                 str(getattr(bk, "emi_bounce_count", None) or 0)),
-                ("Cheque Returns",
-                 str(getattr(bk, "cheque_returns", None) or 0)),
-            ], fs=8.5, pad=4))
-        else:
-            story.append(Paragraph("Bank statement data not available.", pS))
-        story.append(gap(0.4))
+            avg = getattr(bk, "average_monthly_balance", 0) or (
+                getattr(d, "avg_monthly_balance_inr", 0) if d else 0)
+            col_right_rows.append(
+                ("Avg Monthly Bal.", f"Rs.{avg:,.0f}" if avg else "N/A"))
+            col_right_rows.append(("EMI Bounces",    str(
+                getattr(bk, "emi_bounce_count", 0) or 0)))
+        rec = result.gst_reconciliation
+        if rec:
+            flag = "⚠️ RISK FLAG" if rec.risk_flag else "✅ Passed"
+            col_right_rows.append(
+                ("GST Reconciliation", f"{flag} — {rec.variance_pct:.1f}%"))
 
-        # ══════════════════════════════════════════════════════════════════════
-        # SECTION 4  —  FIVE Cs CREDIT ANALYSIS
-        # ══════════════════════════════════════════════════════════════════════
-        story.append(section_hdr("SECTION 4   —   FIVE Cs CREDIT ANALYSIS"))
-        story.append(gap(0.22))
+        if col_left_rows or col_right_rows:
+            lh = mini_tbl(col_left_rows or [
+                          ("—", "No financial data")], lw=2.8*cm)
+            rh = mini_tbl(col_right_rows or [
+                          ("—", "No GST/bank data")],  lw=2.8*cm)
+            two_col = Table([[lh, rh]], colWidths=[TW/2, TW/2])
+            two_col.setStyle(TableStyle([
+                ("LEFTPADDING", (0, 0), (-1, -1),
+                 0), ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+                ("TOPPADDING", (0, 0), (-1, -1),
+                 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]))
+            story.append(two_col)
+        story.append(gap(0.25))
 
+        # Five Cs table
+        story.append(shdr("SECTION 2   —   FIVE Cs CREDIT ANALYSIS"))
+        story.append(gap(0.12))
         if result.five_cs:
             obj5 = result.five_cs
-            W0, W1, W2, W3 = 2.9*cm, 1.9*cm, 2.6*cm, TW - 7.8*cm
-            hdr5 = [Paragraph("Parameter", pWL), Paragraph("Score", pWC), Paragraph(
-                "Rating", pWC), Paragraph("Assessment Summary", pWL)]
-            rows5 = [hdr5]
-            for lbl, o in [
-                ("Character",  obj5.character), ("Capacity",   obj5.capacity),
-                ("Capital",    obj5.capital),   ("Collateral", obj5.collateral),
-                ("Conditions", obj5.conditions),
-            ]:
+            W0, W1, W2, W3 = 2.5*cm, 1.7*cm, 2.3*cm, TW-6.8*cm
+            rows5 = [[Paragraph("Parameter", pWL), Paragraph("Score", pWC),
+                      Paragraph("Rating", pWC), Paragraph("Assessment", pWL)]]
+            for lbl, o in [("Character", obj5.character), ("Capacity", obj5.capacity),
+                           ("Capital", obj5.capital), ("Collateral", obj5.collateral),
+                           ("Conditions", obj5.conditions)]:
                 sc = o.score
-                if sc >= 8.5:
-                    rat, rc = "Excellent", GRN
-                elif sc >= 7.0:
-                    rat, rc = "Good",      GRN
-                elif sc >= 5.5:
-                    rat, rc = "Adequate",  AMB
-                else:
-                    rat, rc = "Weak",      RED
-                rows5.append([
-                    Paragraph(lbl, pB),
-                    Paragraph(f"{sc}/10", pBC),
-                    Paragraph(f'<font color="{rc}"><b>{rat}</b></font>', pNC),
-                    Paragraph(o.summary, pN),
-                ])
-            rows5.append([
-                Paragraph("<b>OVERALL</b>",              pB),
-                Paragraph(f"<b>{obj5.overall_score}/10</b>", pBC),
-                Paragraph("<b>Weighted Avg.</b>",        pBC),
-                Paragraph(
-                    "Combined weighted score across all five parameters.", pN),
-            ])
-            five_tbl = Table(rows5, colWidths=[W0, W1, W2, W3])
-            five_tbl.setStyle(TableStyle([
+                rat, rc2 = (("Excellent", GRN) if sc >= 8.5 else ("Good", GRN) if sc >= 7 else
+                            ("Adequate", AMB) if sc >= 5.5 else ("Weak", RED))
+                rows5.append([Paragraph(lbl, pB), Paragraph(f"{sc}/10", pBC),
+                              Paragraph(
+                                  f'<font color="{rc2}"><b>{rat}</b></font>', pNC),
+                              Paragraph(o.summary, pN)])
+            rows5.append([Paragraph("<b>OVERALL</b>", pB),
+                          Paragraph(f"<b>{obj5.overall_score}/10</b>", pBC),
+                          Paragraph("<b>Wtd. Avg.</b>", pBC),
+                          Paragraph("Combined weighted Five Cs score.", pN)])
+            t5 = Table(rows5, colWidths=[W0, W1, W2, W3])
+            t5.setStyle(TableStyle([
                 ("BACKGROUND",    (0, 0), (-1, 0),  cNAV),
                 ("TEXTCOLOR",     (0, 0), (-1, 0),  cWHT),
                 ("BACKGROUND",    (0, -1), (-1, -1), cLBL),
                 ("FONTNAME",      (0, -1), (-1, -1), "Helvetica-Bold"),
-                ("FONTSIZE",      (0, 0), (-1, -1),  8.5),
-                ("LEADING",       (0, 0), (-1, -1),  12.5),
-                ("BOX",           (0, 0), (-1, -1),  0.7, cNAV2),
-                ("INNERGRID",     (0, 0), (-1, -1),  0.3, cMGR),
-                ("LEFTPADDING",   (0, 0), (-1, -1),  6),
-                ("RIGHTPADDING",  (0, 0), (-1, -1),  6),
-                ("TOPPADDING",    (0, 0), (-1, -1),  5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1),  5),
+                ("FONTSIZE",      (0, 0), (-1, -1),
+                 8), ("LEADING", (0, 0), (-1, -1), 11.5),
+                ("BOX",           (0, 0), (-1, -1),  0.6, cNAV2),
+                ("INNERGRID",     (0, 0), (-1, -1),  0.25, cMGR),
+                ("LEFTPADDING",   (0, 0), (-1, -1),
+                 5), ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING",    (0, 0), (-1, -1),
+                 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
                 ("VALIGN",        (0, 0), (-1, -1),  "MIDDLE"),
                 ("ROWBACKGROUNDS", (0, 1), (-1, -2),  [cWHT, cTNT]),
             ]))
-            story.append(five_tbl)
+            story.append(t5)
         else:
             story.append(Paragraph("Five Cs analysis not available.", pS))
-        story.append(gap(0.4))
+        story.append(gap(0.3))
 
         # ══════════════════════════════════════════════════════════════════════
-        # SECTION 5  —  AI RISK DRIVERS  (SHAP)
+        # PAGE 3 — SHAP + REASONING + SWOT
         # ══════════════════════════════════════════════════════════════════════
-        story.append(section_hdr(
-            "SECTION 5   —   AI RISK DRIVERS  (SHAP ANALYSIS)"))
-        story.append(gap(0.18))
-        story.append(Paragraph(
-            "Factors ranked by absolute SHAP contribution to the XGBoost risk score. "
-            "Higher values indicate stronger influence on the model output.",
-            pJ))
+        story.append(PageBreak())
+        story.append(shdr("SECTION 3   —   AI RISK DRIVERS (SHAP)"))
         story.append(gap(0.12))
-
         if pred and pred.top_shap_factors:
-            WS0, WS1, WS2, WS3 = 5.4*cm, 2.4*cm, 3.2*cm, TW - 11.4*cm
-            shap_rows = [[
-                Paragraph("Risk Factor",    pWL),
-                Paragraph("SHAP Impact",    pWC),
-                Paragraph("Direction",      pWC),
-                Paragraph("Interpretation", pWL),
-            ]]
+            WS = [4.8*cm, 2.2*cm, 2.8*cm, TW-10.2*cm]
+            shap_r = [[Paragraph("Risk Factor", pWL), Paragraph("SHAP", pWC),
+                       Paragraph("Direction", pWC), Paragraph("Interpretation", pWL)]]
             for f in pred.top_shap_factors:
                 up = "increases" in f.direction.lower()
-                dcol = RED if up else GRN
-                dicon = "▲ Increases" if up else "▼ Decreases"
-                interp = ("Unfavourable — pushes score higher"
-                          if up else "Favourable — reduces risk score")
-                shap_rows.append([
-                    Paragraph(f.display_name, pN),
-                    Paragraph(f"{f.shap_value:.4f}", pNC),
-                    Paragraph(
-                        f'<font color="{dcol}"><b>{dicon}</b></font>', pNC),
-                    Paragraph(interp, pS),
-                ])
-            story.append(col_tbl(shap_rows, [WS0, WS1, WS2, WS3]))
+                shap_r.append([Paragraph(f.display_name, pN),
+                               Paragraph(f"{f.shap_value:.4f}", pNC),
+                               Paragraph(
+                    f'<font color="{"#b71c1c" if up else "#1a6b2a"}">{"▲ Inc." if up else "▼ Dec."}</font>', pNC),
+                    Paragraph("Unfavourable" if up else "Favourable", pS)])
+            story.append(col_tbl(shap_r, WS))
         else:
             story.append(Paragraph("SHAP analysis not available.", pS))
-        story.append(gap(0.4))
+        story.append(gap(0.2))
 
-        # ══════════════════════════════════════════════════════════════════════
-        # SECTION 6  —  AI REASONING CHAIN
-        # ══════════════════════════════════════════════════════════════════════
-        story.append(section_hdr("SECTION 6   —   AI REASONING CHAIN"))
-        story.append(gap(0.18))
-        story.append(Paragraph(
-            "Output of Groq LLaMA 3.3 70B. Supplementary to the quantitative XGBoost "
-            "score — does not override the model output.",
-            pJ))
-        story.append(gap(0.12))
-
+        # AI reasoning — compact
+        story.append(shdr("SECTION 4   —   AI REASONING CHAIN"))
+        story.append(gap(0.1))
         if result.reasoning_chain:
-            key_starts = ("DECISION:", "LIMIT:", "RATE:", "REASONING",
-                          "DECISIVE", "LOAN")
+            key_starts = ("DECISION:", "LIMIT:", "RATE:",
+                          "REASONING", "DECISIVE", "LOAN")
             rc_data = []
             for line in result.reasoning_chain.split("\n"):
                 line = line.strip()
@@ -855,302 +628,245 @@ class CAMGenerator:
                 is_key = any(line.upper().startswith(k) for k in key_starts)
                 rc_data.append([Paragraph(line, pB if is_key else pN)])
             if rc_data:
-                rc_tbl = Table(rc_data, colWidths=[TW])
-                rc_tbl.setStyle(TableStyle([
-                    ("BOX",           (0, 0), (-1, -1), 0.7, cNAV2),
-                    ("INNERGRID",     (0, 0), (-1, -1), 0.2, cTNT),
-                    ("BACKGROUND",    (0, 0), (-1, -1), C("#f8f9ff")),
-                    ("LEFTPADDING",   (0, 0), (-1, -1), 10),
-                    ("RIGHTPADDING",  (0, 0), (-1, -1), 10),
-                    ("TOPPADDING",    (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                    ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+                rc_t = Table(rc_data, colWidths=[TW])
+                rc_t.setStyle(TableStyle([
+                    ("BOX", (0, 0), (-1, -1), 0.6, cNAV2), ("BACKGROUND",
+                                                            (0, 0), (-1, -1), C("#f8f9ff")),
+                    ("LEFTPADDING", (0, 0), (-1, -1),
+                     8), ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                    ("TOPPADDING", (0, 0), (-1, -1),
+                     3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
                 ]))
-                story.append(rc_tbl)
+                story.append(rc_t)
         else:
             story.append(Paragraph("AI reasoning not available.", pS))
-        story.append(gap(0.4))
+        story.append(gap(0.2))
 
-        # ══════════════════════════════════════════════════════════════════════
-        # SECTION 7  —  EXTERNAL RESEARCH & DUE DILIGENCE
-        # ══════════════════════════════════════════════════════════════════════
-        story.append(section_hdr(
-            "SECTION 7   —   EXTERNAL RESEARCH & DUE DILIGENCE"))
-        story.append(gap(0.22))
-
-        if result.research:
-            r = result.research
-            story.append(info_tbl([
-                ("News Risk Score",    f"{r.news_risk_score}/10"),
-                ("Negative Articles",  str(len(r.negative_news))),
-                ("Litigation Detected",
-                 "YES — see below" if r.litigation_found else "None found"),
-                ("MCA Charges",
-                 f"{len(r.mca_charges)} charge(s)"
-                 if r.mca_charges else "None found"),
-                ("RBI / SEBI Actions", "None found"),
-            ], fs=8.5, pad=4))
-            if r.research_summary:
-                story.append(gap(0.15))
-                story.append(Paragraph(r.research_summary, pJ))
-            if r.negative_news:
-                story.append(gap(0.12))
-                story.append(Paragraph("Adverse News Articles:", pB))
-                story.append(gap(0.08))
-                neg_rows = [[
-                    Paragraph("Date",     pWL),
-                    Paragraph("Headline", pWL),
-                    Paragraph("Source",   pWL),
-                ]]
-                for item in r.negative_news[:5]:
-                    neg_rows.append([
-                        Paragraph(str(item.date)[:10], pS),
-                        Paragraph(item.title,          pS),
-                        Paragraph(item.source,         pS),
-                    ])
-                neg_tbl = Table(neg_rows, colWidths=[2.1*cm, 10.8*cm, 3.1*cm])
-                neg_tbl.setStyle(TableStyle([
-                    ("BACKGROUND",    (0, 0), (-1, 0),  C(RED_L)),
-                    ("TEXTCOLOR",     (0, 0), (-1, 0),  cRED),
-                    ("FONTNAME",      (0, 0), (-1, 0),  "Helvetica-Bold"),
-                    ("FONTSIZE",      (0, 0), (-1, -1),  8),
-                    ("LEADING",       (0, 0), (-1, -1),  11),
-                    ("BOX",           (0, 0), (-1, -1),  0.5, cMGR),
-                    ("INNERGRID",     (0, 0), (-1, -1),  0.3, cMGR),
-                    ("LEFTPADDING",   (0, 0), (-1, -1),  5),
-                    ("RIGHTPADDING",  (0, 0), (-1, -1),  5),
-                    ("TOPPADDING",    (0, 0), (-1, -1),  4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1),  4),
-                    ("VALIGN",        (0, 0), (-1, -1),  "MIDDLE"),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1),  [cWHT, C(RED_L)]),
+        # SWOT — compact 2x2
+        story.append(shdr("SECTION 5   —   SWOT ANALYSIS"))
+        story.append(gap(0.12))
+        swot = getattr(result, "swot", None)
+        if swot:
+            def swot_q(items, title, bg):
+                rows = [[Paragraph(title, PS(fontSize=7.5, fontName="Helvetica-Bold",
+                                             leading=11, textColor=cWHT, alignment=TA_CENTER))]]
+                for item in items:
+                    rows.append([Paragraph(f"• {item}",
+                                           PS(fontSize=7.5, fontName="Helvetica", leading=11, textColor=colors.black))])
+                t = Table(rows, colWidths=[TW/2-0.15*cm])
+                t.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, 0), C(bg)),
+                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [cWHT, cTNT]),
+                    ("BOX", (0, 0), (-1, -1), 0.6,
+                     cNAV2), ("INNERGRID", (0, 0), (-1, -1), 0.2, cMGR),
+                    ("LEFTPADDING", (0, 0), (-1, -1),
+                     6), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                    ("TOPPADDING", (0, 0), (-1, -1),
+                     4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
                 ]))
-                story.append(neg_tbl)
+                return t
+            swot_grid = Table(
+                [[swot_q(swot.strengths, "STRENGTHS", GRN),    swot_q(swot.weaknesses, "WEAKNESSES", AMB)],
+                 [swot_q(swot.opportunities, "OPPORTUNITIES", NAV), swot_q(swot.threats, "THREATS", RED)]],
+                colWidths=[TW/2, TW/2]
+            )
+            swot_grid.setStyle(TableStyle([
+                ("LEFTPADDING", (0, 0), (-1, -1),
+                 2), ("RIGHTPADDING", (0, 0), (-1, -1), 2),
+                ("TOPPADDING", (0, 0), (-1, -1),
+                 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ]))
+            story.append(swot_grid)
+            if getattr(swot, "summary", ""):
+                story.append(gap(0.1))
+                story.append(Paragraph(swot.summary, pS))
         else:
             story.append(
-                Paragraph("No external research results available.", pS))
-        story.append(gap(0.4))
+                Paragraph("SWOT not available — run analysis pipeline.", pS))
+        story.append(gap(0.3))
 
         # ══════════════════════════════════════════════════════════════════════
-        # SECTION 8  —  EARLY WARNING SIGNALS
+        # PAGE 4 — RESEARCH + TRIANGULATION + EARLY WARNINGS
         # ══════════════════════════════════════════════════════════════════════
-        story.append(section_hdr("SECTION 8   —   EARLY WARNING SIGNALS"))
-        story.append(gap(0.22))
+        story.append(PageBreak())
+        story.append(
+            shdr("SECTION 6   —   EXTERNAL RESEARCH & MACRO TRIANGULATION"))
+        story.append(gap(0.12))
 
+        research_dict = getattr(result, "research_dict", None)
+        r = result.research
+        if research_dict and isinstance(research_dict, dict):
+            tri = research_dict.get("triangulation", {})
+            story.append(info_tbl([
+                ("External Risk",    tri.get("overall_external_risk", "—")),
+                ("News Risk Score",
+                 f"{research_dict.get('news_risk_score','—')}/10"),
+                ("Litigation",       "YES" if research_dict.get(
+                    "litigation_found") else "None found"),
+                ("MCA Charges",      f"{len(research_dict.get('mca_charges',[]))} charge(s)" if research_dict.get(
+                    "mca_charges") else "None"),
+            ], lw=3.8*cm, fs=8, pad=4))
+            if tri.get("triangulation_summary"):
+                story.append(gap(0.1))
+                story.append(
+                    Paragraph(f"<b>Synthesis:</b> {tri['triangulation_summary']}", pJ))
+            # Red flags + Positives side by side
+            flags = tri.get("key_red_flags", [])
+            pos = tri.get("key_positives", [])
+            if flags or pos:
+                fl = ([Paragraph("<b>Red Flags</b>", PS(fontSize=8, fontName="Helvetica-Bold", leading=11, textColor=C(RED)))] +
+                      [Paragraph(f"• {f}", PS(fontSize=7.5, fontName="Helvetica", leading=11, textColor=C(RED))) for f in flags[:3]])
+                pl = ([Paragraph("<b>Positives</b>", PS(fontSize=8, fontName="Helvetica-Bold", leading=11, textColor=C(GRN)))] +
+                      [Paragraph(f"• {p}", PS(fontSize=7.5, fontName="Helvetica", leading=11, textColor=C(GRN))) for p in pos[:3]])
+                ft = Table([[p] for p in fl], colWidths=[TW/2-0.2*cm])
+                pt = Table([[p] for p in pl], colWidths=[TW/2-0.2*cm])
+                for tx in [ft, pt]:
+                    tx.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 0.5, cMGR),
+                                            ("LEFTPADDING", (0, 0), (-1, -1),
+                                             6), ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                                            ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3)]))
+                story.append(gap(0.1))
+                fp_wrap = Table([[ft, pt]], colWidths=[TW/2, TW/2])
+                fp_wrap.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0),
+                                             ("RIGHTPADDING", (0, 0), (-1, -1),
+                                              3), ("TOPPADDING", (0, 0), (-1, -1), 0),
+                                             ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
+                story.append(fp_wrap)
+        elif r:
+            story.append(info_tbl([
+                ("News Risk Score",   f"{r.news_risk_score}/10"),
+                ("Negative Articles", str(len(r.negative_news))),
+                ("Litigation",        "YES" if r.litigation_found else "None found"),
+                ("MCA Charges",
+                 f"{len(r.mca_charges)} charge(s)" if r.mca_charges else "None"),
+            ], lw=3.8*cm, fs=8, pad=4))
+            if r.research_summary:
+                story.append(gap(0.1))
+                story.append(Paragraph(r.research_summary, pS))
+            if r.negative_news:
+                story.append(gap(0.1))
+                story.append(Paragraph("Adverse News:", pB))
+                nr = [[Paragraph("Date", pWL), Paragraph(
+                    "Headline", pWL), Paragraph("Source", pWL)]]
+                for item in r.negative_news[:4]:
+                    nr.append([Paragraph(str(item.date)[:10], pS), Paragraph(
+                        item.title, pS), Paragraph(item.source, pS)])
+                story.append(col_tbl(nr, [2*cm, 11*cm, 3*cm], hdr=RED))
+        else:
+            story.append(Paragraph("External research not available.", pS))
+        story.append(gap(0.2))
+
+        # Early warnings
+        story.append(shdr("SECTION 7   —   EARLY WARNING SIGNALS"))
+        story.append(gap(0.1))
         if pred and pred.early_warning_signals:
             freqs = ["Monthly", "Quarterly",
                      "Quarterly", "At Renewal", "Annually"]
-            ew_rows = [[
-                Paragraph("#",        pWC),
-                Paragraph("Signal",   pWL),
-                Paragraph("Frequency", pWC),
-            ]]
+            ew = [[Paragraph("#", pWC), Paragraph(
+                "Signal", pWL), Paragraph("Frequency", pWC)]]
             for i, w in enumerate(pred.early_warning_signals):
-                ew_rows.append([
-                    Paragraph(str(i+1), pNC),
-                    Paragraph(w,        pN),
-                    Paragraph(freqs[i] if i < len(freqs)
-                              else "Quarterly", pNC),
-                ])
-            ew_tbl = Table(ew_rows,
-                           colWidths=[1.0*cm, TW - 5.6*cm, 4.1*cm])
-            ew_tbl.setStyle(TableStyle([
-                ("BACKGROUND",    (0, 0), (-1, 0),  C(AMB)),
-                ("TEXTCOLOR",     (0, 0), (-1, 0),  cWHT),
-                ("FONTNAME",      (0, 0), (-1, 0),  "Helvetica-Bold"),
-                ("FONTSIZE",      (0, 0), (-1, -1),  8.5),
-                ("LEADING",       (0, 0), (-1, -1),  12),
-                ("BOX",           (0, 0), (-1, -1),  0.7, cNAV2),
-                ("INNERGRID",     (0, 0), (-1, -1),  0.3, cMGR),
-                ("LEFTPADDING",   (0, 0), (-1, -1),  6),
-                ("RIGHTPADDING",  (0, 0), (-1, -1),  6),
-                ("TOPPADDING",    (0, 0), (-1, -1),  5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1),  5),
-                ("VALIGN",        (0, 0), (-1, -1),  "MIDDLE"),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1),  [cWHT, C(AMB_L)]),
-            ]))
-            story.append(ew_tbl)
+                ew.append([Paragraph(str(i+1), pNC), Paragraph(w, pN),
+                           Paragraph(freqs[i] if i < len(freqs) else "Quarterly", pNC)])
+            story.append(col_tbl(ew, [0.8*cm, TW-5*cm, 3.7*cm], hdr=AMB))
         else:
             story.append(Paragraph("No early warning signals identified.", pS))
-        story.append(gap(0.4))
+        story.append(gap(0.3))
 
         # ══════════════════════════════════════════════════════════════════════
-        # SECTION 9  —  CREDIT CONDITIONS & COVENANTS
-        # ══════════════════════════════════════════════════════════════════════
-        story.append(section_hdr(
-            "SECTION 9   —   CREDIT CONDITIONS & COVENANTS"))
-        story.append(gap(0.18))
-        story.append(Paragraph(
-            "The following standard conditions shall form part of the sanction, "
-            "subject to Credit Committee approval and applicable RBI guidelines.",
-            pJ))
-        story.append(gap(0.12))
-
-        cond_rows = [[
-            Paragraph("#",         pWC),
-            Paragraph("Type",      pWL),
-            Paragraph("Condition", pWL),
-        ]]
-        for i, (ct, cx) in enumerate([
-            ("Pre-Disbursement",
-             "Submit audited financials and GST returns for the past 3 financial years."),
-            ("Pre-Disbursement",
-             "Execute all security documents; create SARFAESI-compliant first charge."),
-            ("Pre-Disbursement",
-             "Satisfactory legal opinion on property / security documents obtained."),
-            ("Ongoing Covenant",
-             "Quarterly submission of stock and debtor statements to the branch."),
-            ("Ongoing Covenant",
-             "Maintain DSCR above 1.25x at all times; report any breach within 7 days."),
-            ("Ongoing Covenant", "Prior written approval required for additional long-term borrowings > Rs. 50 Lakhs."),
-            ("Annual Review",
-             "Submit audited Balance Sheet and P&L within 6 months of financial year-end."),
-            ("Annual Review",    "Annual site inspection by relationship / credit manager."),
-        ], 1):
-            cond_rows.append([
-                Paragraph(str(i),  pNC),
-                Paragraph(ct,      pSB),
-                Paragraph(cx,      pN),
-            ])
-        cond_tbl = Table(cond_rows,
-                         colWidths=[0.8*cm, 3.6*cm, TW - 4.8*cm])
-        cond_tbl.setStyle(TableStyle([
-            ("BACKGROUND",    (0, 0), (-1, 0),  cNAV),
-            ("TEXTCOLOR",     (0, 0), (-1, 0),  cWHT),
-            ("FONTNAME",      (0, 0), (-1, 0),  "Helvetica-Bold"),
-            ("FONTSIZE",      (0, 0), (-1, -1),  8.5),
-            ("LEADING",       (0, 0), (-1, -1),  12),
-            ("BOX",           (0, 0), (-1, -1),  0.7, cNAV2),
-            ("INNERGRID",     (0, 0), (-1, -1),  0.3, cMGR),
-            ("LEFTPADDING",   (0, 0), (-1, -1),  6),
-            ("RIGHTPADDING",  (0, 0), (-1, -1),  6),
-            ("TOPPADDING",    (0, 0), (-1, -1),  5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1),  5),
-            ("VALIGN",        (0, 0), (-1, -1),  "MIDDLE"),
-            ("ROWBACKGROUNDS", (0, 1), (-1, -1),  [cWHT, cTNT]),
-        ]))
-        story.append(cond_tbl)
-        story.append(gap(0.4))
-
-        # ══════════════════════════════════════════════════════════════════════
-        # SECTION 10  —  RECOMMENDATION & SANCTION TERMS   (new page)
+        # PAGE 5 — CONDITIONS + RECOMMENDATION
         # ══════════════════════════════════════════════════════════════════════
         story.append(PageBreak())
-        story.append(section_hdr(
-            "SECTION 10   —   RECOMMENDATION & PROPOSED SANCTION TERMS"))
+        story.append(shdr("SECTION 8   —   CREDIT CONDITIONS & COVENANTS"))
+        story.append(gap(0.1))
+        conds = [
+            ("Pre-Disbursement",
+             "Submit audited financials + GST returns for past 3 years."),
+            ("Pre-Disbursement",
+             "Execute all security documents; SARFAESI-compliant first charge."),
+            ("Ongoing Covenant",
+             "Quarterly stock/debtor statements; maintain DSCR > 1.25x."),
+            ("Ongoing Covenant",
+             "Prior written approval for additional LT borrowings > Rs. 50L."),
+            ("Annual Review",    "Audited Balance Sheet + P&L within 6 months of FY end."),
+            ("Annual Review",    "Annual site inspection by relationship/credit manager."),
+        ]
+        cr = [[Paragraph("Type", pWL), Paragraph("Condition", pWL)]]
+        for ct, cx in conds:
+            cr.append([Paragraph(ct, PS(fontSize=7.5, fontName="Helvetica-Bold", leading=11, textColor=colors.black)),
+                       Paragraph(cx, pN)])
+        story.append(col_tbl(cr, [3.5*cm, TW-3.5*cm]))
         story.append(gap(0.25))
 
+        # Recommendation
+        story.append(
+            shdr("SECTION 9   —   RECOMMENDATION & PROPOSED SANCTION TERMS"))
+        story.append(gap(0.12))
         if pred:
             story.append(info_tbl([
-                ("Borrower",               result.company_name),
-                ("Facility Type",
-                 getattr(result, "loan_purpose", "Working Capital")),
+                ("Borrower",          result.company_name),
                 ("Sanctioned Limit",
-                 f"Rs. {pred.loan_limit_inr:,.0f}  "
-                 f"(Rupees {pred.loan_limit_inr/100000:.2f} Lakhs only)"),
+                 f"Rs. {pred.loan_limit_inr:,.0f} ({pred.loan_limit_inr/100000:.2f} Lakhs)"),
                 ("Rate of Interest",
-                 f"{pred.interest_rate:.2f}% p.a.  (Floating — linked to MCLR)"),
-                ("Repayment Period",
-                 "As per facility terms — refer Facility Letter"),
-                ("Primary Security",
-                 "Hypothecation of current assets — stock & book debts"),
-                ("Collateral Security",
-                 "As per application / approved valuation report"),
-                ("Processing Fees",        "0.50% of sanctioned limit + applicable GST"),
-                ("Annual Review Due",
-                 now.replace(year=now.year + 1).strftime("%d-%m-%Y")),
-            ]))
-            story.append(gap(0.28))
+                 f"{pred.interest_rate:.2f}% p.a. (Floating — MCLR linked)"),
+                ("Primary Security",  "Hypothecation of current assets"),
+                ("Collateral",        "As per application / valuation report"),
+                ("Processing Fee",    "0.50% of sanctioned limit + GST"),
+                ("Annual Review",     now.replace(
+                    year=now.year+1).strftime("%d-%m-%Y")),
+            ], lw=4.0*cm, pad=4))
+            story.append(gap(0.15))
 
-        # decisive factor box
-        if pred and pred.decisive_factor:
-            df_tbl = Table(
-                [[Paragraph(
-                    f"<b>Decisive Factor:</b>  {pred.decisive_factor}", pJ
-                )]],
-                colWidths=[TW]
-            )
-            df_tbl.setStyle(TableStyle([
-                ("BOX",           (0, 0), (-1, -1), 1.2, cNAV2),
-                ("LEFTPADDING",   (0, 0), (-1, -1), 12),
-                ("RIGHTPADDING",  (0, 0), (-1, -1), 12),
-                ("TOPPADDING",    (0, 0), (-1, -1), 9),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
-                ("BACKGROUND",    (0, 0), (-1, -1), cLBL),
-            ]))
-            story.append(df_tbl)
-            story.append(gap(0.28))
-
-        # recommendation banner — solid decision colour
-        banner = Table(
-            [[Paragraph(
-                f"<b>{dec_label}</b>",
-                PS(fontSize=15, fontName="Helvetica-Bold",
-                   alignment=TA_CENTER, textColor=cWHT)
-            )]],
-            colWidths=[TW]
-        )
-        banner.setStyle(TableStyle([
-            ("BACKGROUND",    (0, 0), (-1, -1), C(dec_bg)),
-            ("TOPPADDING",    (0, 0), (-1, -1), 14),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 14),
-            ("BOX",           (0, 0), (-1, -1), 0, cWHT),
+        # Final decision banner
+        final_banner = Table([[Paragraph(f"<b>{dec_label}</b>",
+                                         PS(fontSize=13, fontName="Helvetica-Bold", alignment=TA_CENTER, textColor=cWHT))]],
+                             colWidths=[TW])
+        final_banner.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), C(dec_bg)),
+            ("TOPPADDING", (0, 0), (-1, -1),
+             12), ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
         ]))
-        story.append(banner)
-        story.append(gap(0.45))
+        story.append(final_banner)
+        story.append(gap(0.25))
 
-        # signature / approval block
-        story.append(Paragraph(
-            "CREDIT COMMITTEE SIGN-OFF",
-            PS(fontSize=9, fontName="Helvetica-Bold",
-               textColor=C(NAV2), spaceAfter=6)
-        ))
-        cw4 = TW / 4
-        sig_hdrs = ["Credit Analyst", "Credit Manager / AGM",
-                    "Head of Credit",  "Chief Credit Officer"]
-        sig_data = [
-            [Paragraph(f"<b>{h}</b>", pWC) for h in sig_hdrs],
-            [Paragraph("\n\n\n___________________________", pNC)] * 4,
-            [Paragraph("Name:  _____________________", pS)] * 4,
-            [Paragraph("Emp. ID:  __________________", pS)] * 4,
-            [Paragraph("Date:  _____________________", pS)] * 4,
+        # Four-person sign-off
+        cw4 = TW/4
+        sig4 = [
+            [Paragraph(f"<b>{h}</b>", pWC) for h in ["Credit Analyst",
+                                                     "Credit Manager", "Head of Credit", "Chief Credit Officer"]],
+            [Paragraph("\n\n___________________", pNC)]*4,
+            [Paragraph("Date: _____________", pS)]*4,
         ]
-        sig_tbl = Table(sig_data, colWidths=[cw4]*4)
-        sig_tbl.setStyle(TableStyle([
-            ("BOX",           (0, 0), (-1, -1), 0.8, cNAV),
-            ("INNERGRID",     (0, 0), (-1, -1), 0.4, cMGR),
-            ("BACKGROUND",    (0, 0), (-1, 0),  cNAV),
-            ("BACKGROUND",    (0, 1), (-1, -1), cTNT),
-            ("FONTSIZE",      (0, 0), (-1, -1), 8.5),
-            ("LEADING",       (0, 0), (-1, -1), 12),
-            ("TOPPADDING",    (0, 0), (-1, -1), 5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ("LEFTPADDING",   (0, 0), (-1, -1), 5),
-            ("RIGHTPADDING",  (0, 0), (-1, -1), 5),
-            ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
+        st4 = Table(sig4, colWidths=[cw4]*4)
+        st4.setStyle(TableStyle([
+            ("BOX", (0, 0), (-1, -1), 0.7,
+             cNAV), ("INNERGRID", (0, 0), (-1, -1), 0.3, cMGR),
+            ("BACKGROUND", (0, 0), (-1, 0),
+             cNAV), ("BACKGROUND", (0, 1), (-1, -1), cTNT),
+            ("FONTSIZE", (0, 0), (-1, -1), 8), ("LEADING", (0, 0), (-1, -1), 11.5),
+            ("TOPPADDING", (0, 0), (-1, -1),
+             4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
         ]))
-        story.append(sig_tbl)
-        story.append(gap(0.45))
+        story.append(st4)
+        story.append(gap(0.3))
 
-        # disclaimer
+        # Disclaimer
         story.append(HRFlowable(width="100%", thickness=0.4, color=cMGR))
-        story.append(gap(0.1))
+        story.append(gap(0.08))
         story.append(Paragraph(
-            "DISCLAIMER: This Credit Appraisal Memorandum is generated by an AI-assisted "
-            "scoring system (IntelliCredit v1.4) for internal credit evaluation purposes only. "
-            "The AI model's output is supplementary to human judgment and does not constitute "
-            "a binding credit decision. All sanctions are subject to applicable RBI guidelines, "
-            "internal credit policy, and Credit Committee approval. This document is strictly "
-            "confidential and must not be shared with the applicant or any external party.",
-            PS(fontSize=7, fontName="Helvetica", leading=10.5,
-               textColor=cDGR, alignment=TA_JUSTIFY)
-        ))
+            f"DISCLAIMER: This CAM is generated by {APP_NAME} v2.0, an AI-assisted credit "
+            "scoring engine. Output is supplementary to human judgment and does not constitute "
+            "a binding credit decision. All sanctions subject to applicable RBI guidelines, "
+            "internal credit policy, and Credit Committee approval. Strictly confidential.",
+            PS(fontSize=6.5, fontName="Helvetica", leading=10, textColor=cDGR,
+               alignment=TA_JUSTIFY)))
 
         pdf_doc.build(story)
         print(f"PDF saved: {output_path}")
         return output_path
 
     # ══════════════════════════════════════════════════════════════════════════
-    # DOCX
+    # DOCX  —  mirrors PDF structure, 5-6 pages
     # ══════════════════════════════════════════════════════════════════════════
 
     def generate_docx(self, result: CreditAppraisalResult, output_path: str) -> str:
@@ -1162,32 +878,30 @@ class CAMGenerator:
 
         doc = Document()
         for sec in doc.sections:
-            sec.top_margin = Cm(2.2)
-            sec.bottom_margin = Cm(2.2)
-            sec.left_margin = Cm(2.5)
-            sec.right_margin = Cm(2.5)
+            sec.top_margin = Cm(2.0)
+            sec.bottom_margin = Cm(2.0)
+            sec.left_margin = Cm(2.2)
+            sec.right_margin = Cm(2.2)
 
         pred = result.risk_prediction
         ds, cs, dec_bg, dec_lt, dec_label = self._pred_strings(pred)
         now = datetime.now()
-        ref = (f"CAM/{now.year}/"
-               f"{result.company_name[:4].upper()}/"
-               f"{now.strftime('%m%d%H%M')}")
+        ref = f"CAM/{now.year}/{result.company_name[:4].upper()}/{now.strftime('%m%d%H%M')}"
 
-        def rgb(h):
-            return RGBColor(int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16))
+        def rgb(h): return RGBColor(
+            int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16))
 
         def shade(cell, hex_c):
             tc = cell._tc
             tcPr = tc.get_or_add_tcPr()
             shd = OxmlElement("w:shd")
-            shd.set(qn("w:fill"),  hex_c.lstrip("#"))
-            shd.set(qn("w:val"),   "clear")
+            shd.set(qn("w:fill"), hex_c.lstrip("#"))
+            shd.set(qn("w:val"), "clear")
             shd.set(qn("w:color"), "auto")
             tcPr.append(shd)
 
-        def cell_fmt(cell, text, bold=False, size=9,
-                     color=None, align=WD_ALIGN_PARAGRAPH.LEFT):
+        def cell_fmt(cell, text, bold=False, size=9, color=None,
+                     align=WD_ALIGN_PARAGRAPH.LEFT):
             p = cell.paragraphs[0]
             p.clear()
             run = p.add_run(str(text))
@@ -1200,47 +914,47 @@ class CAMGenerator:
             p.paragraph_format.space_before = Pt(0)
             p.paragraph_format.space_after = Pt(0)
 
-        def sec_hdr(txt):
+        def shdr_d(txt):
             p = doc.add_paragraph()
-            p.paragraph_format.space_before = Pt(12)
-            p.paragraph_format.space_after = Pt(5)
+            p.paragraph_format.space_before = Pt(10)
+            p.paragraph_format.space_after = Pt(4)
             run = p.add_run(txt)
             run.bold = True
-            run.font.size = Pt(11)
+            run.font.size = Pt(10)
             run.font.name = "Arial"
             run.font.color.rgb = rgb(NAV2)
             pPr = p._p.get_or_add_pPr()
             pBdr = OxmlElement("w:pBdr")
             lft = OxmlElement("w:left")
-            lft.set(qn("w:val"),   "single")
-            lft.set(qn("w:sz"),    "18")
+            lft.set(qn("w:val"), "single")
+            lft.set(qn("w:sz"), "18")
             lft.set(qn("w:space"), "6")
             lft.set(qn("w:color"), NAV.lstrip("#"))
             pBdr.append(lft)
             pPr.append(pBdr)
 
-        def info_tbl_d(rows, w0=4.5):
+        def info_tbl_d(rows, w0=4.0):
             t = doc.add_table(rows=0, cols=2)
             t.style = "Table Grid"
             for lbl, val in rows:
                 row = t.add_row()
                 c0, c1 = row.cells[0], row.cells[1]
                 c0.width = Cm(w0)
-                c1.width = Cm(13.5 - w0)
+                c1.width = Cm(13.5-w0)
                 shade(c0, LBLU)
                 cell_fmt(c0, lbl, bold=True)
                 cell_fmt(c1, val)
             return t
 
-        # ── cover ──────────────────────────────────────────────────────────────
-        h1 = doc.add_heading(CAM_BANK_NAME.upper(), level=1)
+        # Cover
+        h1 = doc.add_heading(APP_NAME.upper(), level=1)
         h1.alignment = WD_ALIGN_PARAGRAPH.CENTER
         if h1.runs:
             h1.runs[0].font.color.rgb = rgb(NAV)
             h1.runs[0].font.size = Pt(14)
             h1.runs[0].font.name = "Arial"
 
-        p_sub = doc.add_paragraph("Credit Risk Management Division")
+        p_sub = doc.add_paragraph("AI-Powered Credit Intelligence Engine")
         p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
         for r in p_sub.runs:
             r.font.size = Pt(9)
@@ -1248,96 +962,66 @@ class CAMGenerator:
             r.font.name = "Arial"
 
         doc.add_paragraph()
-        p_title = doc.add_paragraph("CREDIT APPRAISAL MEMORANDUM")
+        p_title = doc.add_paragraph("INVESTMENT ASSESSMENT REPORT")
         p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
         for r in p_title.runs:
             r.bold = True
-            r.font.size = Pt(18)
+            r.font.size = Pt(17)
             r.font.color.rgb = rgb(NAV)
             r.font.name = "Arial"
         doc.add_paragraph()
 
-        # cover detail table
-        cov_d = [
-            ("Applicant / Borrower", result.company_name),
-            ("Reference No.",        ref),
-            ("AI Decision",          dec_label),
-            ("Risk Category",        cs),
-            ("Loan Limit",
-             f"Rs. {pred.loan_limit_inr:,.0f} ({pred.loan_limit_inr/100000:.2f} Lakhs)"
-             if pred else "N/A"),
-            ("Interest Rate",
-             f"{pred.interest_rate:.2f}% p.a." if pred else "N/A"),
-            ("Report Date",          now.strftime("%d %B %Y")),
-            ("Prepared By",          CAM_AUTHOR),
-            ("Classification",       "STRICTLY CONFIDENTIAL"),
-        ]
-        ct = info_tbl_d(cov_d, w0=5.0)
-        # colour decision row (row index 2)
-        shade(ct.rows[2].cells[1], dec_lt)
-        cell_fmt(ct.rows[2].cells[1], dec_label, bold=True, color=dec_bg)
-
-        doc.add_paragraph()
-
-        # approval block
-        ap = doc.add_table(rows=4, cols=3)
-        ap.style = "Table Grid"
-        for ci, h_ in enumerate(["Credit Analyst", "Credit Manager / AGM", "Chief Credit Officer"]):
-            shade(ap.rows[0].cells[ci], NAV)
-            cell_fmt(ap.rows[0].cells[ci], h_, bold=True, color=WHT,
-                     align=WD_ALIGN_PARAGRAPH.CENTER)
-        for ri, lbl in enumerate(["Name", "Signature\n\n", "Date"], 1):
-            for ci in range(3):
-                cell_fmt(ap.rows[ri].cells[ci],
-                         lbl if ci == 0 else "",
-                         bold=(ci == 0))
-
-        doc.add_page_break()
-
-        # ── sections ────────────────────────────────────────────────────────────
-
-        # S1 Executive Summary
-        sec_hdr("SECTION 1 — EXECUTIVE SUMMARY")
+        # Cover table — entity + loan details
         info_tbl_d([
-            ("Company / Borrower",  result.company_name),
-            ("GSTIN",
-             result.gst_data.gstin if result.gst_data else "N/A"),
-            ("Reference No.",       ref),
-            ("AI Decision",         dec_label),
-            ("Risk Category",       cs),
+            ("Company / Borrower", result.company_name),
+            ("CIN",                getattr(result, "cin", "N/A")),
+            ("PAN",                result.itr_data.pan if result.itr_data else "N/A"),
+            ("GSTIN",              result.gst_data.gstin if result.gst_data else "N/A"),
+            ("Sector",             getattr(result, "sector", "—")),
+            ("Loan Type",          getattr(result, "loan_type", "—")),
+            ("Amount Requested",
+             f"Rs. {getattr(result,'loan_amount_cr','—')} Cr"),
+            ("Tenure",
+             f"{getattr(result,'loan_tenure_months','—')} months"),
+            ("AI Decision",        dec_label),
             ("Risk Score",
              f"{pred.risk_score:.3f} / 1.000" if pred else "N/A"),
             ("Loan Limit",
-             f"Rs. {pred.loan_limit_inr:,.0f} ({pred.loan_limit_inr/100000:.2f} Lakhs)"
-             if pred else "N/A"),
+             f"Rs. {pred.loan_limit_inr:,.0f}" if pred else "N/A"),
             ("Interest Rate",
              f"{pred.interest_rate:.2f}% p.a." if pred else "N/A"),
+            ("Reference No.",      ref),
+            ("Report Date",        now.strftime("%d %B %Y")),
+            ("Prepared By",        CAM_AUTHOR),
+            ("Classification",     "STRICTLY CONFIDENTIAL"),
         ])
         doc.add_paragraph()
+        doc.add_page_break()
 
-        # S2 Financial Analysis
-        sec_hdr("SECTION 2 — FINANCIAL ANALYSIS")
+        # S1 Financial Analysis
+        shdr_d("SECTION 1 — EXECUTIVE SUMMARY & FINANCIAL ANALYSIS")
+        if pred and getattr(pred, "decisive_factor", ""):
+            p = doc.add_paragraph(f"Decisive Factor: {pred.decisive_factor}")
+            for r in p.runs:
+                r.bold = True
+                r.font.size = Pt(9)
+                r.font.name = "Arial"
         dr = self._derived_rows(result)
-        if dr:
-            info_tbl_d(dr)
-        else:
-            doc.add_paragraph("Financial ratios not available.")
+        info_tbl_d(dr or [("Financial Ratios", "Not available")])
         doc.add_paragraph()
 
-        # S3 Five Cs
-        sec_hdr("SECTION 3 — FIVE Cs CREDIT ANALYSIS")
+        # S2 Five Cs
+        shdr_d("SECTION 2 — FIVE Cs CREDIT ANALYSIS")
         if result.five_cs:
             obj5 = result.five_cs
             t5 = doc.add_table(rows=1, cols=3)
             t5.style = "Table Grid"
-            for ci, h_ in enumerate(["Parameter", "Score", "Assessment Summary"]):
+            for ci, h_ in enumerate(["Parameter", "Score", "Assessment"]):
                 shade(t5.rows[0].cells[ci], NAV)
                 cell_fmt(t5.rows[0].cells[ci], h_, bold=True, color=WHT)
-            for lbl, o in [
-                ("Character",  obj5.character), ("Capacity",   obj5.capacity),
-                ("Capital",    obj5.capital),   ("Collateral", obj5.collateral),
-                ("Conditions", obj5.conditions),
-            ]:
+            for lbl, o in [("Character", obj5.character), ("Capacity", obj5.capacity),
+                           ("Capital", obj5.capital), ("Collateral", obj5.collateral),
+                           ("Conditions", obj5.conditions)]:
                 row = t5.add_row().cells
                 cell_fmt(row[0], lbl, bold=True)
                 cell_fmt(row[1], f"{o.score}/10",
@@ -1346,14 +1030,14 @@ class CAMGenerator:
             ov = t5.add_row().cells
             for c in ov:
                 shade(c, LBLU)
-            cell_fmt(ov[0], "OVERALL",               bold=True)
+            cell_fmt(ov[0], "OVERALL", bold=True)
             cell_fmt(ov[1], f"{obj5.overall_score}/10",
                      bold=True, align=WD_ALIGN_PARAGRAPH.CENTER)
-            cell_fmt(ov[2], "Weighted average",       bold=True)
+            cell_fmt(ov[2], "Weighted average", bold=True)
         doc.add_paragraph()
 
-        # S4 SHAP
-        sec_hdr("SECTION 4 — AI RISK DRIVERS (SHAP)")
+        # S3 SHAP
+        shdr_d("SECTION 3 — AI RISK DRIVERS (SHAP)")
         if pred and pred.top_shap_factors:
             t4 = doc.add_table(rows=1, cols=3)
             t4.style = "Table Grid"
@@ -1368,12 +1052,52 @@ class CAMGenerator:
                 cell_fmt(row[2], f.direction)
         doc.add_paragraph()
 
-        # S5 Early Warnings
-        sec_hdr("SECTION 5 — EARLY WARNING SIGNALS")
+        # S4 SWOT
+        shdr_d("SECTION 4 — SWOT ANALYSIS")
+        swot = getattr(result, "swot", None)
+        if swot:
+            for cat, items in [("STRENGTHS", swot.strengths), ("WEAKNESSES", swot.weaknesses),
+                               ("OPPORTUNITIES", swot.opportunities), ("THREATS", swot.threats)]:
+                p = doc.add_paragraph(cat)
+                for r in p.runs:
+                    r.bold = True
+                    r.font.size = Pt(9)
+                    r.font.name = "Arial"
+                for item in items:
+                    bi = doc.add_paragraph(f"  • {item}")
+                    for r in bi.runs:
+                        r.font.size = Pt(8.5)
+                        r.font.name = "Arial"
+                    bi.paragraph_format.space_after = Pt(1)
+            if getattr(swot, "summary", ""):
+                doc.add_paragraph(swot.summary)
+        else:
+            doc.add_paragraph("SWOT analysis not available.")
+        doc.add_paragraph()
+
+        # S5 Research
+        shdr_d("SECTION 5 — EXTERNAL RESEARCH")
+        r = result.research
+        if r:
+            info_tbl_d([
+                ("News Risk Score",  f"{r.news_risk_score}/10"),
+                ("Negative News",   str(len(r.negative_news))),
+                ("Litigation",      "YES" if r.litigation_found else "None"),
+                ("MCA Charges",
+                 f"{len(r.mca_charges)} charge(s)" if r.mca_charges else "None"),
+            ])
+            if r.research_summary:
+                doc.add_paragraph(r.research_summary)
+        else:
+            doc.add_paragraph("Research not available.")
+        doc.add_paragraph()
+
+        # S6 Early Warnings
+        shdr_d("SECTION 6 — EARLY WARNING SIGNALS")
         if pred and pred.early_warning_signals:
             t5w = doc.add_table(rows=1, cols=2)
             t5w.style = "Table Grid"
-            for ci, h_ in enumerate(["Signal", "Monitor Frequency"]):
+            for ci, h_ in enumerate(["Signal", "Frequency"]):
                 shade(t5w.rows[0].cells[ci], AMB)
                 cell_fmt(t5w.rows[0].cells[ci], h_, bold=True, color=WHT)
             freqs = ["Monthly", "Quarterly",
@@ -1385,33 +1109,22 @@ class CAMGenerator:
                          align=WD_ALIGN_PARAGRAPH.CENTER)
         doc.add_paragraph()
 
-        # S6 Reasoning
-        sec_hdr("SECTION 6 — AI REASONING CHAIN")
-        if result.reasoning_chain:
-            key_starts = ("DECISION:", "LIMIT:", "RATE:",
-                          "REASONING", "DECISIVE", "LOAN")
-            for line in result.reasoning_chain.split("\n"):
-                line = line.strip()
-                if not line:
-                    continue
-                is_key = any(line.upper().startswith(k) for k in key_starts)
-                p2 = doc.add_paragraph(line)
-                p2.paragraph_format.space_after = Pt(2)
-                for r2 in p2.runs:
-                    r2.font.size = Pt(9)
-                    r2.font.name = "Arial"
-                    r2.bold = is_key
-        doc.add_paragraph()
-
         # S7 Recommendation
-        sec_hdr("SECTION 7 — RECOMMENDATION")
+        shdr_d("SECTION 7 — RECOMMENDATION")
         if pred:
-            p_rec = doc.add_paragraph()
-            r_rec = p_rec.add_run(f"DECISION: {dec_label}")
-            r_rec.bold = True
-            r_rec.font.size = Pt(13)
-            r_rec.font.name = "Arial"
-            r_rec.font.color.rgb = rgb(dec_bg)
+            info_tbl_d([
+                ("Borrower",         result.company_name),
+                ("Sanctioned Limit", f"Rs. {pred.loan_limit_inr:,.0f}"),
+                ("Interest Rate",    f"{pred.interest_rate:.2f}% p.a."),
+                ("Primary Security", "Hypothecation of current assets"),
+                ("Processing Fee",   "0.50% + GST"),
+            ])
+            p_dec = doc.add_paragraph()
+            r_dec = p_dec.add_run(f"DECISION: {dec_label}")
+            r_dec.bold = True
+            r_dec.font.size = Pt(12)
+            r_dec.font.color.rgb = rgb(dec_bg)
+            r_dec.font.name = "Arial"
             if pred.decisive_factor:
                 p_df = doc.add_paragraph(
                     f"Decisive Factor: {pred.decisive_factor}")
@@ -1419,15 +1132,14 @@ class CAMGenerator:
                     r2.font.size = Pt(9)
                     r2.font.name = "Arial"
 
-        # footer
+        # Footer
         footer = doc.sections[0].footer
         fp = footer.paragraphs[0]
-        fp.text = (f"Ref: {ref}  |  {CAM_BANK_NAME}  |  "
-                   f"STRICTLY CONFIDENTIAL  |  "
-                   f"{now.strftime('%d %b %Y')}  |  {CAM_AUTHOR}")
+        fp.text = (f"Ref: {ref}  |  {APP_NAME}  |  "
+                   f"STRICTLY CONFIDENTIAL  |  {now.strftime('%d %b %Y')}  |  {CAM_AUTHOR}")
         fp.alignment = WD_ALIGN_PARAGRAPH.CENTER
         if fp.runs:
-            fp.runs[0].font.size = Pt(7.5)
+            fp.runs[0].font.size = Pt(7)
             fp.runs[0].font.color.rgb = rgb(DGRY)
             fp.runs[0].font.name = "Arial"
 

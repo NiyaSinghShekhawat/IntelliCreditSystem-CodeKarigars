@@ -117,8 +117,8 @@ FIVE_CS_WEIGHTS = {
 }
 
 # ─── CAM REPORT ──────────────────────────────────────────────────────────────
-CAM_BANK_NAME = "Intelli-Credit Bank"
-CAM_REPORT_TITLE = "Credit Appraisal Memorandum"
+CAM_BANK_NAME = "Intelli-Credit"
+CAM_REPORT_TITLE = "Investment Assessment Report"
 CAM_AUTHOR = "Intelli-Credit AI Engine"
 
 # ─── QUALITATIVE SCORE ADJUSTMENT ────────────────────────────────────────────

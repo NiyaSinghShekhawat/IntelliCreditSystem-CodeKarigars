@@ -94,15 +94,117 @@ def _render_header(case: dict):
 
 # ─── TAB 1: EXTRACTION RESULTS ───────────────────────────────────────────────
 
+# def _render_extractions(case: dict):
+#     import pandas as pd
+
+#     raw = case.get("five_cs_json")
+#     if not raw:
+#         st.info("No extraction results yet — upload and classify documents first.")
+#         col_btn, _ = st.columns([2, 6])
+#         with col_btn:
+#             if st.button("📂 Upload & Classify Documents", type="primary", use_container_width=True):
+#                 st.session_state.page = "classify"
+#                 st.rerun()
+#         return
+
+#     data = raw if isinstance(raw, dict) else {}
+#     if isinstance(raw, str):
+#         try:
+#             data = json.loads(raw)
+#         except Exception:
+#             st.warning("Could not parse extraction results.")
+#             return
+
+#     skip = {"extraction_confidence", "extraction_notes"}
+
+#     for filename, fields in data.items():
+#         if not isinstance(fields, dict):
+#             continue
+
+#         conf = fields.get("extraction_confidence", 0)
+#         notes = fields.get("extraction_notes", [])
+#         conf_color = "#00E676" if conf >= 0.7 else "#FFD740" if conf >= 0.4 else "#FF5252"
+#         border_color = "#1B5E20" if conf >= 0.7 else "#F57F17" if conf >= 0.4 else "#B71C1C"
+
+#         with st.expander(f"📄 {filename}  —  {conf:.0%} confidence", expanded=True):
+#             rows = []
+#             for field, value in fields.items():
+#                 if field in skip or value is None:
+#                     continue
+#                 label = (field.replace("_", " ")
+#                          .replace(" cr", " (₹ Cr)")
+#                          .replace(" pct", " (%)")
+#                          .title())
+#                 if isinstance(value, float):
+#                     formatted = f"{value:,.2f}"
+#                 elif isinstance(value, list):
+#                     formatted = ", ".join(str(x)
+#                                           for x in value) if value else "—"
+#                 else:
+#                     formatted = str(value)
+#                 rows.append({"Field": label, "Value": formatted})
+
+#             if rows:
+#                 df = pd.DataFrame(rows)
+#                 st.dataframe(df, use_container_width=True, hide_index=True,
+#                              column_config={
+#                                  "Field": st.column_config.TextColumn(width="medium"),
+#                                  "Value": st.column_config.TextColumn(width="medium"),
+#                              })
+#             else:
+#                 st.caption("No fields extracted.")
+
+#             for note in notes:
+#                 st.caption(f"ℹ️ {note}")
+
 def _render_extractions(case: dict):
     import pandas as pd
+    from pathlib import Path
 
+    # ── Uploaded files list ───────────────────────────────────────────────────
+    uploaded_files = case.get("uploaded_files") or []
+    if isinstance(uploaded_files, str):
+        try:
+            uploaded_files = json.loads(uploaded_files)
+        except:
+            uploaded_files = []
+
+    if uploaded_files:
+        st.markdown("<p class='ic-section-title'>Uploaded Documents</p>",
+                    unsafe_allow_html=True)
+        cols = st.columns(min(len(uploaded_files), 3))
+        for i, f in enumerate(uploaded_files):
+            conf = f.get("confidence", 0)
+            col = "#00E676" if conf >= 0.7 else "#FFD740" if conf >= 0.4 else "#FF5252"
+            date = (f.get("uploaded_at") or "")[:10] or "—"
+            with cols[i % 3]:
+                st.markdown(f"""
+                <div class='ic-card' style='padding:0.9rem 1.1rem;margin-bottom:0.5rem;'>
+                    <div style='font-size:0.78rem;font-weight:600;
+                                color:var(--text);margin-bottom:4px;
+                                white-space:nowrap;overflow:hidden;
+                                text-overflow:ellipsis;' title='{f.get("filename","")}'
+                    >📄 {f.get("filename","")}</div>
+                    <div style='font-size:0.72rem;color:var(--text-muted);
+                                margin-bottom:4px;'>{f.get("doc_type_label","—")}</div>
+                    <div style='display:flex;justify-content:space-between;
+                                align-items:center;'>
+                        <span style='font-family:JetBrains Mono,monospace;
+                                     font-size:0.78rem;font-weight:700;
+                                     color:{col};'>{conf:.0%}</span>
+                        <span style='font-size:0.68rem;color:var(--text-hint);'>{date}</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        st.markdown("<hr class='ic-divider'>", unsafe_allow_html=True)
+
+    # ── Extracted field data ──────────────────────────────────────────────────
     raw = case.get("five_cs_json")
     if not raw:
         st.info("No extraction results yet — upload and classify documents first.")
         col_btn, _ = st.columns([2, 6])
         with col_btn:
-            if st.button("📂 Upload & Classify Documents", type="primary", use_container_width=True):
+            if st.button("📂 Upload & Classify Documents", key="ext_upload_btn", type="primary", use_container_width=True):
                 st.session_state.page = "classify"
                 st.rerun()
         return
@@ -111,19 +213,16 @@ def _render_extractions(case: dict):
     if isinstance(raw, str):
         try:
             data = json.loads(raw)
-        except Exception:
+        except:
             st.warning("Could not parse extraction results.")
             return
 
     skip = {"extraction_confidence", "extraction_notes"}
-
     for filename, fields in data.items():
         if not isinstance(fields, dict):
             continue
-
         conf = fields.get("extraction_confidence", 0)
         notes = fields.get("extraction_notes", [])
-        conf_color = "#00E676" if conf >= 0.7 else "#FFD740" if conf >= 0.4 else "#FF5252"
         border_color = "#1B5E20" if conf >= 0.7 else "#F57F17" if conf >= 0.4 else "#B71C1C"
 
         with st.expander(f"📄 {filename}  —  {conf:.0%} confidence", expanded=True):
@@ -135,25 +234,19 @@ def _render_extractions(case: dict):
                          .replace(" cr", " (₹ Cr)")
                          .replace(" pct", " (%)")
                          .title())
-                if isinstance(value, float):
-                    formatted = f"{value:,.2f}"
-                elif isinstance(value, list):
-                    formatted = ", ".join(str(x)
-                                          for x in value) if value else "—"
-                else:
-                    formatted = str(value)
+                formatted = (f"{value:,.2f}" if isinstance(value, float)
+                             else ", ".join(str(x) for x in value) if isinstance(value, list)
+                             else str(value))
                 rows.append({"Field": label, "Value": formatted})
-
             if rows:
-                df = pd.DataFrame(rows)
-                st.dataframe(df, use_container_width=True, hide_index=True,
+                st.dataframe(pd.DataFrame(rows), use_container_width=True,
+                             hide_index=True,
                              column_config={
                                  "Field": st.column_config.TextColumn(width="medium"),
                                  "Value": st.column_config.TextColumn(width="medium"),
-                             })
+                })
             else:
                 st.caption("No fields extracted.")
-
             for note in notes:
                 st.caption(f"ℹ️ {note}")
 
@@ -171,7 +264,7 @@ def _render_analysis(case: dict):
         st.info("No analysis results yet — run AI credit analysis first.")
         col_btn, _ = st.columns([2, 6])
         with col_btn:
-            if st.button("🔍 Run Analysis", type="primary", use_container_width=True):
+            if st.button("🔍 Run Analysis", key="analysis_run_analysis", type="primary", use_container_width=True):
                 st.session_state.page = "analysis"
                 st.rerun()
         return
@@ -230,15 +323,69 @@ def _render_analysis(case: dict):
 
 # ─── TAB 3: CAM REPORT ────────────────────────────────────────────────────────
 
+# def _render_cam(case: dict):
+#     from pathlib import Path
+
+#     cam_path = case.get("cam_path", "")
+#     if not cam_path:
+#         st.info("CAM report not generated yet — complete the analysis pipeline first.")
+#         col_btn, _ = st.columns([2, 6])
+#         with col_btn:
+#             if st.button("🔍 Go to Analysis", type="primary", use_container_width=True):
+#                 st.session_state.page = "analysis"
+#                 st.rerun()
+#         return
+
+#     docx_path = cam_path.replace(
+#         ".pdf", ".docx") if cam_path.endswith(".pdf") else ""
+
+#     st.markdown(f"""
+#     <div class='ic-card'>
+#         <div style='font-size:0.88rem;color:var(--text-sec);margin-bottom:1rem;'>
+#             Generated from AI analysis pipeline.
+#             Download and review before closing the case.
+#         </div>
+#     """, unsafe_allow_html=True)
+
+#     col1, col2 = st.columns(2)
+#     with col1:
+#         if cam_path and Path(cam_path).exists():
+#             with open(cam_path, "rb") as f:
+#                 st.download_button(
+#                     "📄 Download PDF CAM",
+#                     data=f.read(),
+#                     file_name=Path(cam_path).name,
+#                     mime="application/pdf",
+#                     use_container_width=True
+#                 )
+#         else:
+#             st.caption("PDF report file not found on server.")
+#     with col2:
+#         if docx_path and Path(docx_path).exists():
+#             with open(docx_path, "rb") as f:
+#                 st.download_button(
+#                     "📝 Download DOCX CAM",
+#                     data=f.read(),
+#                     file_name=Path(docx_path).name,
+#                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+#                     use_container_width=True
+#                 )
+#         else:
+#             st.caption("DOCX report file not found on server.")
+
+#     st.markdown("</div>", unsafe_allow_html=True)
 def _render_cam(case: dict):
     from pathlib import Path
 
     cam_path = case.get("cam_path", "")
+    closed_at = (case.get("closed_at") or "")[:10] or None
+
     if not cam_path:
-        st.info("CAM report not generated yet — complete the analysis pipeline first.")
+        st.info(
+            "Investment Report not generated yet — run the analysis pipeline first.")
         col_btn, _ = st.columns([2, 6])
         with col_btn:
-            if st.button("🔍 Go to Analysis", type="primary", use_container_width=True):
+            if st.button("🔍 Run Analysis", key="cam_run_analysis", type="primary", use_container_width=True):
                 st.session_state.page = "analysis"
                 st.rerun()
         return
@@ -247,40 +394,32 @@ def _render_cam(case: dict):
         ".pdf", ".docx") if cam_path.endswith(".pdf") else ""
 
     st.markdown(f"""
-    <div class='ic-card'>
-        <div style='font-size:0.88rem;color:var(--text-sec);margin-bottom:1rem;'>
-            Generated from AI analysis pipeline.
-            Download and review before closing the case.
-        </div>
+    <div style='font-size:0.82rem;color:var(--text-sec);margin-bottom:1rem;'>
+        Investment Assessment Report generated
+        {f'on <strong style="color:var(--text);">{closed_at}</strong>' if closed_at else ''}.
+        Download below for Credit Committee review.
+    </div>
     """, unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
     with col1:
         if cam_path and Path(cam_path).exists():
             with open(cam_path, "rb") as f:
-                st.download_button(
-                    "📄 Download PDF CAM",
-                    data=f.read(),
-                    file_name=Path(cam_path).name,
-                    mime="application/pdf",
-                    use_container_width=True
-                )
+                st.download_button("📄 Download PDF Report", data=f.read(),
+                                   file_name=Path(cam_path).name,
+                                   mime="application/pdf",
+                                   use_container_width=True, type="primary")
         else:
-            st.caption("PDF report file not found on server.")
+            st.caption("PDF not found on server — may have been cleared.")
     with col2:
         if docx_path and Path(docx_path).exists():
             with open(docx_path, "rb") as f:
-                st.download_button(
-                    "📝 Download DOCX CAM",
-                    data=f.read(),
-                    file_name=Path(docx_path).name,
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    use_container_width=True
-                )
+                st.download_button("📝 Download DOCX Report", data=f.read(),
+                                   file_name=Path(docx_path).name,
+                                   mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                   use_container_width=True)
         else:
-            st.caption("DOCX report file not found on server.")
-
-    st.markdown("</div>", unsafe_allow_html=True)
+            st.caption("DOCX not found on server.")
 
 
 # ─── TAB 4: OFFICER ASSESSMENT ───────────────────────────────────────────────
@@ -489,15 +628,15 @@ def render():
     # Navigation row
     col_back, col_upload, col_analyse, col_gap = st.columns([1.5, 2, 2, 3])
     with col_back:
-        if st.button("← Dashboard", use_container_width=True):
+        if st.button("← Dashboard", key="cv_back_dashboard", use_container_width=True):
             st.session_state.page = "dashboard"
             st.rerun()
     with col_upload:
-        if st.button("📂 Upload & Classify", use_container_width=True):
+        if st.button("📂 Upload & Classify", key="cv_upload_classify",  use_container_width=True):
             st.session_state.page = "classify"
             st.rerun()
     with col_analyse:
-        if st.button("🔍 Run Analysis", use_container_width=True):
+        if st.button("🔍 Run Analysis", key="cv_run_analysis", use_container_width=True):
             st.session_state.page = "analysis"
             st.rerun()
 

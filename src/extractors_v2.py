@@ -185,6 +185,7 @@ def _llm_extract(doc_type: str, text: str, schema_fields: list[dict]) -> dict:
     """
     Use Groq LLM to extract structured data from document text.
     Returns a dict of field -> value.
+    Uses first 4000 + last 4000 chars to capture both headers and summary totals.
     """
     from config import get_groq_client
     client = get_groq_client()
@@ -193,18 +194,26 @@ def _llm_extract(doc_type: str, text: str, schema_fields: list[dict]) -> dict:
         f"- {f['field']}: {f['description']}" for f in schema_fields
     )
 
+    # Smart truncation: first 4k chars (headers/cover) + last 4k (summary totals)
+    if len(text) > 8000:
+        text_for_llm = text[:4000] + \
+            "\n...[middle truncated]...\n" + text[-4000:]
+    else:
+        text_for_llm = text
+
     prompt = f"""You are a financial data extractor for an NBFC credit underwriting system.
 
 Extract the following fields from this {doc_type} document.
 Return ONLY valid JSON with the exact field names below.
 Use null for any field you cannot find. All monetary values in ₹ Crore.
 Do NOT include units in the values — just the number.
+Look carefully through ALL sections — key values often appear in summary tables at the end.
 
 Fields to extract:
 {fields_desc}
 
-Document text (first 3000 chars):
-{text[:3000]}
+Document text:
+{text_for_llm}
 
 Respond ONLY with valid JSON, no markdown fences, no explanation:"""
 
@@ -213,7 +222,7 @@ Respond ONLY with valid JSON, no markdown fences, no explanation:"""
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.05,
-            max_tokens=800
+            max_tokens=1200
         )
         raw = response.choices[0].message.content.strip()
         raw = re.sub(r"```(?:json)?|```", "", raw).strip()

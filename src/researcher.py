@@ -532,6 +532,198 @@ class ResearchAgent:
             lines.append("No RBI/SEBI actions.")
         return " ".join(lines)
 
+    def research_sector(self, sector: str, company_name: str) -> dict:
+        """
+        Scrape macro and sector-level signals for the entity's industry.
+        Returns a dict of sector risk signals.
+        """
+        signals = {
+            "sector": sector,
+            "macro_signals": [],
+            "sector_risk_level": "Medium",
+            "sources": []
+        }
+
+        try:
+            # RBI sectoral credit data
+            rbi_query = f'"{sector}" India RBI credit growth NPA 2024 2025'
+            encoded = __import__('urllib.parse', fromlist=[
+                                 'quote']).quote(rbi_query)
+            url = f"https://news.google.com/rss/search?q={encoded}&hl=en-IN&gl=IN&ceid=IN:en"
+            response = self.session.get(url, timeout=8)
+
+            if response.status_code == 200:
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(response.content, "xml")
+                articles = soup.find_all("item")[:5]
+                for a in articles:
+                    title = a.find("title")
+                    if title:
+                        signals["macro_signals"].append(title.text[:120])
+                        signals["sources"].append("Google News / RBI")
+
+            # Sector risk heuristics
+            HIGH_RISK_SECTORS = {
+                "real estate", "construction", "infrastructure",
+                "hospitality", "aviation", "retail"
+            }
+            LOW_RISK_SECTORS = {
+                "healthcare", "fmcg", "technology", "nbfc / fintech",
+                "financial services", "education"
+            }
+            sector_lower = sector.lower()
+            if any(s in sector_lower for s in HIGH_RISK_SECTORS):
+                signals["sector_risk_level"] = "High"
+            elif any(s in sector_lower for s in LOW_RISK_SECTORS):
+                signals["sector_risk_level"] = "Low"
+
+        except Exception as e:
+            if DEBUG_MODE:
+                print(f"  Sector research error: {e}")
+
+        return signals
+
+    def triangulate(
+        self,
+        findings: "ResearchFindings",
+        extracted_data: dict = None,
+        sector_signals: dict = None
+    ) -> dict:
+        """
+        Triangulate research signals with extracted financial data.
+        Returns a unified risk narrative dict stored in research_json.
+        """
+        from config import get_groq_client
+
+        # Build context
+        lines = [f"Company: {findings.company_name}"]
+        lines.append(f"News Risk Score: {findings.news_risk_score}/10")
+
+        if findings.negative_news:
+            lines.append("Negative signals:")
+            for item in findings.negative_news[:3]:
+                lines.append(f"  - {item.title}")
+
+        if findings.litigation_found:
+            lines.append(
+                f"Litigation: {len(findings.litigation_details)} case(s)")
+            for d in findings.litigation_details[:2]:
+                lines.append(f"  - {d}")
+
+        if findings.mca_charges:
+            lines.append(f"MCA charges: {len(findings.mca_charges)}")
+
+        if findings.rbi_sebi_actions:
+            lines.append(f"RBI/SEBI actions: {len(findings.rbi_sebi_actions)}")
+
+        if extracted_data:
+            lines.append("\nExtracted financial signals:")
+            for fname, fields in extracted_data.items():
+                if not isinstance(fields, dict):
+                    continue
+                for key in ["gnpa_pct", "aum_cr", "total_borrowings_cr",
+                            "promoter_holding_pct", "pledged_shares_pct",
+                            "collection_efficiency_pct", "pat_cr"]:
+                    if fields.get(key) is not None:
+                        lines.append(f"  {key}: {fields[key]}")
+
+        if sector_signals:
+            lines.append(f"\nSector: {sector_signals.get('sector','')}")
+            lines.append(
+                f"Sector risk: {sector_signals.get('sector_risk_level','')}")
+            for signal in sector_signals.get("macro_signals", [])[:3]:
+                lines.append(f"  Macro: {signal}")
+
+        context = "\n".join(lines)
+
+        # LLM synthesis
+        try:
+            client = get_groq_client()
+            prompt = f"""You are a credit analyst triangulating external research
+    with financial data for a loan assessment.
+
+    Based on the signals below, provide a concise risk synthesis in JSON:
+    {{
+    "overall_external_risk": "Low/Medium/High",
+    "key_red_flags": ["flag1", "flag2"],
+    "key_positives": ["positive1", "positive2"],
+    "triangulation_summary": "2-3 sentence synthesis of how external signals align or contradict the financials",
+    "recommended_checks": ["check1", "check2"]
+    }}
+
+    Signals:
+    {context}
+
+    Respond ONLY with valid JSON, no markdown:"""
+
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                max_tokens=500
+            )
+            raw = response.choices[0].message.content.strip()
+            import re
+            import json
+            raw = re.sub(r"```(?:json)?|```", "", raw).strip()
+            triangulated = json.loads(raw)
+
+        except Exception as e:
+            print(f"[RESEARCHER] Triangulation LLM failed: {e}")
+            triangulated = {
+                "overall_external_risk": "Medium",
+                "key_red_flags": [i.title for i in findings.negative_news[:2]],
+                "key_positives": [i.title for i in findings.positive_news[:2]],
+                "triangulation_summary": findings.research_summary,
+                "recommended_checks": ["Verify MCA filings", "Check promoter background"]
+            }
+
+        return {
+            "news_risk_score":   findings.news_risk_score,
+            "research_summary":  findings.research_summary,
+            "negative_news":     [n.model_dump() for n in findings.negative_news[:5]],
+            "positive_news":     [p.model_dump() for p in findings.positive_news[:3]],
+            "litigation_found":  findings.litigation_found,
+            "litigation_details": findings.litigation_details,
+            "mca_charges":       findings.mca_charges,
+            "rbi_sebi_actions":  findings.rbi_sebi_actions,
+            "sector_signals":    sector_signals or {},
+            "triangulation":     triangulated,
+        }
+
+    def research_full(
+        self,
+        company_name: str,
+        promoter_name: str = "",
+        sector: str = "",
+        extracted_data: dict = None,
+        use_mock: bool = False,
+        mock_level: str = "medium"
+    ) -> dict:
+        """
+        Full research pipeline — news + sector + triangulation.
+        Returns a dict ready to store in cases.research_json.
+        """
+        print(f"[RESEARCHER] Full research: {company_name}")
+
+        # Step 1: News research
+        if use_mock:
+            findings = self.research_with_mock(company_name, mock_level)
+        else:
+            findings = self.research(company_name, promoter_name)
+
+        # Step 2: Sector/macro signals
+        sector_signals = {}
+        if sector:
+            print(f"[RESEARCHER] Sector research: {sector}")
+            sector_signals = self.research_sector(sector, company_name)
+
+        # Step 3: Triangulate
+        print("[RESEARCHER] Triangulating signals...")
+        result = self.triangulate(findings, extracted_data, sector_signals)
+
+        return result
+
 
 if __name__ == "__main__":
     agent = ResearchAgent()
