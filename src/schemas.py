@@ -298,3 +298,15 @@ class CreditAppraisalResult(BaseModel):
     # Report paths
     pdf_report_path: Optional[str] = None
     docx_report_path: Optional[str] = None
+
+
+class DocumentClassification(BaseModel):
+    # ANNUAL_REPORT | ALM | SHAREHOLDING_PATTERN | BORROWING_PROFILE | PORTFOLIO_PERFORMANCE | UNKNOWN
+    doc_type: str
+    doc_type_label: str    # Human-readable label
+    confidence: float      # 0.0 to 1.0
+    reasoning: str         # One-line explanation
+    key_signals: list[str]  # Signals that triggered this classification
+    # HITL fields — set by user in the UI
+    user_confirmed: bool = False
+    user_override: Optional[str] = None

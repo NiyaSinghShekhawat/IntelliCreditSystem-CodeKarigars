@@ -138,3 +138,14 @@ APP_TITLE = "Intelli-Credit: AI-Powered Credit Appraisal"
 APP_ICON = "🏦"
 DEBUG_MODE = False
 DEMO_MODE = False
+
+
+def get_groq_client():
+    """Returns a Groq client using the next available key (round-robin rotation)."""
+    import groq
+    if not GROQ_API_KEYS:
+        raise ValueError("No GROQ_API_KEY set in .env")
+    # Simple round-robin: rotate index stored in a mutable default arg
+    get_groq_client._idx = (
+        getattr(get_groq_client, "_idx", -1) + 1) % len(GROQ_API_KEYS)
+    return groq.Groq(api_key=GROQ_API_KEYS[get_groq_client._idx])

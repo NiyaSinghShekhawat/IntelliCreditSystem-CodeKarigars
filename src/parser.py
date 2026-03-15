@@ -19,6 +19,18 @@ class DocumentParser:
 
     def __init__(self):
         print("Loading Docling converter... (first time may take 1-2 min)")
+
+        from docling.datamodel.pipeline_options import PdfPipelineOptions
+        from docling.document_converter import DocumentConverter, PdfFormatOption
+        from docling.datamodel.base_models import InputFormat
+
+        # Disable OCR entirely — use text layer only
+        # These annual report PDFs have embedded text, OCR is unnecessary
+        # and causes bad_alloc on large image-heavy pages
+        pipeline_options = PdfPipelineOptions()
+        pipeline_options.do_ocr = False          # ← kills RapidOCR completely
+        pipeline_options.do_table_structure = True  # keep table extraction
+
         self.converter = DocumentConverter(
             allowed_formats=[
                 InputFormat.PDF,
@@ -26,7 +38,12 @@ class DocumentParser:
                 InputFormat.XLSX,
                 InputFormat.IMAGE,
                 InputFormat.HTML,
-            ]
+            ],
+            format_options={
+                InputFormat.PDF: PdfFormatOption(
+                    pipeline_options=pipeline_options
+                )
+            }
         )
         print("Docling ready.")
 
