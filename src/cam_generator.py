@@ -356,20 +356,29 @@ class CAMGenerator:
         story.append(gap(0.35))
 
         # ── Two-column cover table: Entity | Loan ────────────────────────────
+        _cin = getattr(result, "cin", None) or "N/A"
+        _pan = (result.itr_data.pan if result.itr_data and result.itr_data.pan
+                else getattr(result, "pan", "N/A"))
+        _gstin = (result.gst_data.gstin if result.gst_data and result.gst_data.gstin
+                  else "N/A")
+        _sector = getattr(result, "sector", None) or "—"
+        _ltype = getattr(result, "loan_type", None) or "—"
+        _lamount = getattr(result, "loan_amount_cr", None)
+        _tenure = getattr(result, "loan_tenure_months", None)
+
         entity_rows = [
             ("Company / Borrower", result.company_name),
-            ("CIN",    getattr(result, "cin", None) or "N/A"),
-            ("PAN",    result.itr_data.pan if result.itr_data else getattr(
-                result, "pan", "N/A")),
-            ("GSTIN",  result.gst_data.gstin if result.gst_data else "N/A"),
-            ("Sector", getattr(result, "sector", "—")),
+            ("CIN",    _cin),
+            ("PAN",    _pan),
+            ("GSTIN",  _gstin),
+            ("Sector", _sector),
         ]
         loan_rows = [
-            ("Loan Type",    getattr(result, "loan_type",    "—")),
+            ("Loan Type",    _ltype),
             ("Amount Req.",
-             f"Rs. {getattr(result, 'loan_amount_cr', '—')} Cr"),
+             f"Rs. {_lamount:.2f} Cr" if _lamount else "As per application"),
             ("Tenure",
-             f"{getattr(result, 'loan_tenure_months', '—')} months"),
+             f"{_tenure} months" if _tenure else "As per sanction"),
             ("AI Decision",  dec_label),
             ("Risk Score",   f"{pred.risk_score:.3f}" if pred else "N/A"),
         ]
@@ -532,11 +541,25 @@ class CAMGenerator:
             col_right_rows.append(
                 ("GST Reconciliation", f"{flag} — {rec.variance_pct:.1f}%"))
 
+        while len(col_left_rows) < len(col_right_rows):
+            col_left_rows.append(("", ""))
+        while len(col_right_rows) < len(col_left_rows):
+            col_right_rows.append(("", ""))
+
         if col_left_rows or col_right_rows:
             lh = mini_tbl(col_left_rows or [
                           ("—", "No financial data")], lw=2.8*cm)
             rh = mini_tbl(col_right_rows or [
                           ("—", "No GST/bank data")],  lw=2.8*cm)
+            # Add BEFORE the two_col Table:
+            story.append(Paragraph(
+                "Financial Ratios &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
+                "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
+                "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
+                "GST & Banking",
+                PS(fontSize=8, fontName="Helvetica-Bold", textColor=C(NAV2),
+                   spaceBefore=4, spaceAfter=4)
+            ))
             two_col = Table([[lh, rh]], colWidths=[TW/2, TW/2])
             two_col.setStyle(TableStyle([
                 ("LEFTPADDING", (0, 0), (-1, -1),
@@ -805,7 +828,7 @@ class CAMGenerator:
             story.append(info_tbl([
                 ("Borrower",          result.company_name),
                 ("Sanctioned Limit",
-                 f"Rs. {pred.loan_limit_inr:,.0f} ({pred.loan_limit_inr/100000:.2f} Lakhs)"),
+                 f"Rs. {pred.loan_limit_inr/10000000:.2f} Cr " f"(Rs. {pred.loan_limit_inr/100000:.2f} Lakhs only)"),
                 ("Rate of Interest",
                  f"{pred.interest_rate:.2f}% p.a. (Floating — MCLR linked)"),
                 ("Primary Security",  "Hypothecation of current assets"),

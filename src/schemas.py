@@ -273,3 +273,8 @@ class CreditAppraisalResult(BaseModel):
     # Report paths
     pdf_report_path: Optional[str] = None
     docx_report_path: Optional[str] = None
+
+    loan_type:           Optional[str] = None
+    loan_amount_cr:      Optional[float] = None
+    loan_tenure_months:  Optional[int] = None
+    sector:              Optional[str] = None

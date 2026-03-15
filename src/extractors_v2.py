@@ -749,3 +749,42 @@ def extract_by_doc_type(
     if fn is None:
         return None
     return fn(text, tables)
+
+
+def enrich_qualitative_inputs(extractions: dict, base_inputs):
+    """Merge extracted doc data into QualitativeInputs."""
+    from src.schemas import QualitativeInputs
+
+    updated = base_inputs.model_copy()
+    notes = list(base_inputs.auto_filled_fields or [])
+
+    for fname, data in extractions.items():
+        if data is None:
+            continue
+
+        if isinstance(data, AnnualReportData):
+            if data.total_debt_cr and data.net_worth_cr and data.net_worth_cr > 0:
+                de = round(data.total_debt_cr / data.net_worth_cr, 2)
+                if updated.debt_equity_ratio == 1.5:
+                    updated.debt_equity_ratio = de
+                    notes.append(
+                        f"D/E ratio auto-filled from Annual Report: {de:.2f}x")
+            if data.net_worth_cr and updated.net_worth_inr == 0:
+                updated.net_worth_inr = data.net_worth_cr * 1e7
+                notes.append(
+                    f"Net worth auto-filled from Annual Report: ₹{data.net_worth_cr} Cr")
+
+        elif isinstance(data, BorrowingProfileData):
+            if data.debt_equity_ratio and updated.debt_equity_ratio == 1.5:
+                updated.debt_equity_ratio = data.debt_equity_ratio
+                notes.append(
+                    f"D/E ratio from Borrowing Profile: {data.debt_equity_ratio:.2f}x")
+
+        elif isinstance(data, ShareholdingData):
+            if data.pledged_shares_pct and data.pledged_shares_pct > 50:
+                updated.promoter_score = max(1, updated.promoter_score - 2)
+                notes.append(
+                    f"Promoter score reduced: {data.pledged_shares_pct:.0f}% shares pledged")
+
+    updated.auto_filled_fields = notes
+    return updated

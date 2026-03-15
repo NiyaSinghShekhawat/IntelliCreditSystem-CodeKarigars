@@ -814,6 +814,14 @@ def render_analysis():
 
         from src.schemas import CreditAppraisalResult, QualitativeInputs
         result = CreditAppraisalResult(company_name=company_name)
+        # Attach onboarding fields to result for CAM report
+        ob = st.session_state.get("ob_form", {})
+        result.cin = ob.get("cin") or None
+        result.sector = ob.get("sector") or None
+        result.loan_type = ob.get("loan_type") or None
+        result.loan_amount_cr = float(ob.get("loan_amount_cr") or 0) or None
+        result.loan_tenure_months = int(
+            ob.get("loan_tenure_months") or 0) or None
 
         # ── Parse documents ───────────────────────────────────────────────
         with st.spinner("📄 Parsing documents..."):
@@ -995,12 +1003,6 @@ def render_analysis():
         with st.spinner("🧠 Running AI reasoning (Groq LLaMA)..."):
             result = engines["agent"].analyze(result)
 
-        # ── Generate Investment Report ────────────────────────────────────
-        with st.spinner("📄 Generating Investment Assessment Report..."):
-            paths = engines["cam"].generate_both(result)
-            st.session_state["pdf_path"] = paths["pdf"]
-            st.session_state["docx_path"] = paths["docx"]
-
         # ── FIX 3: SWOT — safe NameError guard ───────────────────────────
         with st.spinner("🧩 Generating SWOT analysis..."):
             swot = None
@@ -1013,6 +1015,12 @@ def render_analysis():
             except Exception as e:
                 print(f"[SWOT] Failed: {e}")
             result.swot = swot   # None if failed — safe, no NameError
+
+        # ── Generate Investment Report ────────────────────────────────────
+        with st.spinner("📄 Generating Investment Assessment Report..."):
+            paths = engines["cam"].generate_both(result)
+            st.session_state["pdf_path"] = paths["pdf"]
+            st.session_state["docx_path"] = paths["docx"]
 
         # ── Save to Supabase ──────────────────────────────────────────────
         if st.session_state.get("case_id"):
