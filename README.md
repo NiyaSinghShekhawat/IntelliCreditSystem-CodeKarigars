@@ -4,6 +4,7 @@
 
 IntelliCredit is an end-to-end AI credit underwriting platform for NBFCs and enterprise lenders. It automates the full credit analyst workflow — from entity onboarding through document ingestion, intelligent extraction, secondary research, risk scoring, and professional investment report generation — all accessible from a single hosted web interface.
 
+Visit [this link](https://www.canva.com/design/DAHDRjFsSwE/EMJBZ1IuQkwa49WveTVYaw/view?utm_content=DAHDRjFsSwE&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=hc6361520a4) for prototype presentation and updated mock-ups.
 ---
 
 ## ✨ What's New in v2.0
