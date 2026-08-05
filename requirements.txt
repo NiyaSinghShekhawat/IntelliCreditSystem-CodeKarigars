@@ -1,0 +1,48 @@
+# ═══════════════════════════════════════════════════════════════════
+# IntelliCredit v2.0 — requirements.txt
+# Python 3.11 (pin via runtime.txt)
+# ═══════════════════════════════════════════════════════════════════
+
+# ── UI Framework ────────────────────────────────────────────────────
+streamlit>=1.35.0,<2.0.0
+
+# ── LLM APIs ────────────────────────────────────────────────────────
+groq>=0.9.0                        # Primary LLM — LLaMA 3.3 70B
+google-generativeai==0.8.6         # Gemini 1.5 Flash fallback (old SDK, stable)
+
+# ── Database ────────────────────────────────────────────────────────
+supabase>=2.4.0                    # Case & entity persistence
+
+# ── Document Parsing ────────────────────────────────────────────────
+docling>=2.0.0                     # Primary parser (PDF, XLSX, DOCX)
+PyMuPDF>=1.24.0                    # Auto-classifier + fast text extraction
+openpyxl>=3.1.0                    # Direct xlsx cell scanning (GST/Bank/ITR)
+python-docx>=1.1.0                 # DOCX report generation
+
+# ── ML / Explainability ─────────────────────────────────────────────
+xgboost>=2.0.0                     # Risk scoring model
+shap>=0.45.0                       # SHAP explainability
+
+# ── Vector Store / RAG ──────────────────────────────────────────────
+chromadb>=0.5.0                    # Vector store for RAG
+sentence-transformers>=3.0.0       # all-MiniLM-L6-v2 embeddings
+
+# ── Report Generation ───────────────────────────────────────────────
+reportlab>=4.2.0                   # PDF CAM / Investment Report
+
+# ── Data & Validation ───────────────────────────────────────────────
+pandas>=2.1.0
+pydantic>=2.5.0                    # All data schemas
+python-dotenv>=1.0.0               # .env loading
+
+# ── Visualisation ───────────────────────────────────────────────────
+plotly>=5.20.0                     # Radar chart, SHAP bar chart
+
+# ── Research / Web ──────────────────────────────────────────────────
+requests>=2.31.0                   # News API, MCA, e-Courts
+beautifulsoup4>=4.12.0             # HTML scraping for research
+lxml>=5.0.0                        # BS4 XML/HTML parser backend
+
+# ── Utilities ───────────────────────────────────────────────────────
+numpy>=1.26.4                       # Use pre-built wheel; numpy 2.x works with modern xgboost/shap
+scikit-learn>=1.4.0                # Used internally by SHAP + sentence-transformers
